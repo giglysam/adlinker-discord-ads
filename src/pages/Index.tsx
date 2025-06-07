@@ -1,12 +1,36 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import React from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import AuthPage from '../components/Auth/AuthPage';
+import AdvertiserDashboard from '../components/Advertiser/AdvertiserDashboard';
+import AdShowerDashboard from '../components/AdShower/AdShowerDashboard';
+import AdminDashboard from '../components/Admin/AdminDashboard';
+import Navbar from '../components/Layout/Navbar';
 
 const Index = () => {
+  const { user } = useAuth();
+
+  if (!user) {
+    return <AuthPage />;
+  }
+
+  const renderDashboard = () => {
+    switch (user.role) {
+      case 'advertiser':
+        return <AdvertiserDashboard />;
+      case 'shower':
+        return <AdShowerDashboard />;
+      case 'admin':
+        return <AdminDashboard />;
+      default:
+        return <div className="text-white">Unknown user role</div>;
+    }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen bg-gray-900">
+      <Navbar />
+      {renderDashboard()}
     </div>
   );
 };
