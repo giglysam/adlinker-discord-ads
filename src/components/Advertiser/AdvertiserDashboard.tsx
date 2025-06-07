@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,6 +33,7 @@ const AdvertiserDashboard = () => {
 
   const fetchAds = async () => {
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('ads')
         .select('*')
@@ -46,7 +46,6 @@ const AdvertiserDashboard = () => {
         return;
       }
 
-      // Type cast the data to ensure status matches our interface
       const typedAds = (data || []).map(ad => ({
         ...ad,
         status: ad.status as 'pending' | 'public' | 'stopped'
@@ -105,7 +104,6 @@ const AdvertiserDashboard = () => {
         return;
       }
 
-      // Type cast the returned data to match our interface
       const typedAd = {
         ...data,
         status: data.status as 'pending' | 'public' | 'stopped'
@@ -113,7 +111,7 @@ const AdvertiserDashboard = () => {
 
       setAds([typedAd, ...ads]);
       setShowCreateModal(false);
-      toast.success('Ad created successfully!');
+      toast.success('Ad created successfully! Awaiting admin approval.');
     } catch (error) {
       console.error('Error creating ad:', error);
       toast.error('Failed to create ad');
@@ -169,7 +167,7 @@ const AdvertiserDashboard = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-gray-400 text-sm">Public Ads</p>
+                  <p className="text-gray-400 text-sm">Active Ads</p>
                   <p className="text-2xl font-bold text-green-400">{publicAds.length}</p>
                 </div>
                 <div className="w-12 h-12 bg-green-600/20 rounded-lg flex items-center justify-center">

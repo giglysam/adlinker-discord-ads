@@ -34,7 +34,7 @@ const AuthPage = () => {
       if (success) {
         toast.success('Successfully logged in!');
       } else {
-        toast.error('Invalid credentials. Try: admin@discordadnet.com / advertiser@example.com / shower@example.com');
+        toast.error('Invalid credentials or account not verified');
       }
     } catch (error) {
       toast.error('Login failed');
@@ -50,7 +50,7 @@ const AuthPage = () => {
     try {
       const success = await signup(signupForm.username, signupForm.email, signupForm.password, signupForm.role);
       if (success) {
-        toast.success('Account created successfully!');
+        toast.success('Account created! Please check your email to verify your account before logging in.');
       } else {
         toast.error('Signup failed');
       }
@@ -115,13 +115,6 @@ const AuthPage = () => {
                   {isLoading ? 'Logging in...' : 'Login'}
                 </Button>
               </form>
-              
-              <div className="text-sm text-gray-400 space-y-1">
-                <p>Demo accounts:</p>
-                <p>• admin@discordadnet.com (Admin)</p>
-                <p>• advertiser@example.com (Advertiser)</p>
-                <p>• shower@example.com (Ad Shower)</p>
-              </div>
             </TabsContent>
             
             <TabsContent value="signup" className="space-y-4 mt-6">

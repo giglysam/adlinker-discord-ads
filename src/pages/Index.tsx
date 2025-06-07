@@ -10,7 +10,8 @@ import Navbar from '../components/Layout/Navbar';
 const Index = () => {
   const { user, loading } = useAuth();
 
-  if (loading) {
+  // Don't show loading for normal operations, only during initial auth
+  if (loading && !user) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-white text-xl">Loading...</div>
