@@ -46,7 +46,13 @@ const AdvertiserDashboard = () => {
         return;
       }
 
-      setAds(data || []);
+      // Type cast the data to ensure status matches our interface
+      const typedAds = (data || []).map(ad => ({
+        ...ad,
+        status: ad.status as 'pending' | 'public' | 'stopped'
+      }));
+
+      setAds(typedAds);
     } catch (error) {
       console.error('Error fetching ads:', error);
       toast.error('Failed to load ads');
@@ -99,7 +105,13 @@ const AdvertiserDashboard = () => {
         return;
       }
 
-      setAds([data, ...ads]);
+      // Type cast the returned data to match our interface
+      const typedAd = {
+        ...data,
+        status: data.status as 'pending' | 'public' | 'stopped'
+      };
+
+      setAds([typedAd, ...ads]);
       setShowCreateModal(false);
       toast.success('Ad created successfully!');
     } catch (error) {
