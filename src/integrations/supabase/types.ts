@@ -9,7 +9,216 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      ad_deliveries: {
+        Row: {
+          ad_id: string
+          created_at: string
+          earning_amount: number | null
+          error_message: string | null
+          id: string
+          status: string
+          webhook_id: string
+        }
+        Insert: {
+          ad_id: string
+          created_at?: string
+          earning_amount?: number | null
+          error_message?: string | null
+          id?: string
+          status: string
+          webhook_id: string
+        }
+        Update: {
+          ad_id?: string
+          created_at?: string
+          earning_amount?: number | null
+          error_message?: string | null
+          id?: string
+          status?: string
+          webhook_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_deliveries_ad_id_fkey"
+            columns: ["ad_id"]
+            isOneToOne: false
+            referencedRelation: "ads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_deliveries_webhook_id_fkey"
+            columns: ["webhook_id"]
+            isOneToOne: false
+            referencedRelation: "webhooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ads: {
+        Row: {
+          created_at: string
+          id: string
+          image_url: string | null
+          impressions: number | null
+          status: string
+          text: string
+          title: string
+          updated_at: string
+          url: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          impressions?: number | null
+          status?: string
+          text: string
+          title: string
+          updated_at?: string
+          url: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          impressions?: number | null
+          status?: string
+          text?: string
+          title?: string
+          updated_at?: string
+          url?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cashout_requests: {
+        Row: {
+          amount: number
+          completed_at: string | null
+          created_at: string
+          id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cashout_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          balance: number | null
+          created_at: string
+          email: string
+          id: string
+          password_hash: string
+          role: string
+          updated_at: string
+          username: string
+          webhook_notice: string | null
+        }
+        Insert: {
+          balance?: number | null
+          created_at?: string
+          email: string
+          id?: string
+          password_hash: string
+          role: string
+          updated_at?: string
+          username: string
+          webhook_notice?: string | null
+        }
+        Update: {
+          balance?: number | null
+          created_at?: string
+          email?: string
+          id?: string
+          password_hash?: string
+          role?: string
+          updated_at?: string
+          username?: string
+          webhook_notice?: string | null
+        }
+        Relationships: []
+      }
+      webhooks: {
+        Row: {
+          ads_sent: number | null
+          created_at: string
+          id: string
+          is_active: boolean | null
+          last_error: string | null
+          last_sent_at: string | null
+          server_name: string | null
+          updated_at: string
+          user_id: string
+          webhook_url: string
+        }
+        Insert: {
+          ads_sent?: number | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          last_error?: string | null
+          last_sent_at?: string | null
+          server_name?: string | null
+          updated_at?: string
+          user_id: string
+          webhook_url: string
+        }
+        Update: {
+          ads_sent?: number | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          last_error?: string | null
+          last_sent_at?: string | null
+          server_name?: string | null
+          updated_at?: string
+          user_id?: string
+          webhook_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhooks_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
