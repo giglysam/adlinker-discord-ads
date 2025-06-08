@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { User, Mail, Lock, UserPlus } from 'lucide-react';
+import { User, Mail, Lock, UserPlus, CheckCircle } from 'lucide-react';
 
 const AuthPage = () => {
   const { login, signup } = useAuth();
@@ -32,12 +32,12 @@ const AuthPage = () => {
     try {
       const success = await login(loginForm.email, loginForm.password);
       if (success) {
-        toast.success('Successfully logged in!');
+        toast.success('Successfully logged in! Redirecting to your dashboard...');
       } else {
-        toast.error('Invalid credentials or account not verified');
+        toast.error('Invalid credentials. Please check your email and password.');
       }
     } catch (error) {
-      toast.error('Login failed');
+      toast.error('Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -50,12 +50,21 @@ const AuthPage = () => {
     try {
       const success = await signup(signupForm.username, signupForm.email, signupForm.password, signupForm.role);
       if (success) {
-        toast.success('Account created! Please check your inbox to verify your email address before logging in.');
+        toast.success('Account created successfully! Please check your inbox and verify your email address before logging in.', {
+          duration: 6000,
+        });
+        // Clear the form
+        setSignupForm({
+          username: '',
+          email: '',
+          password: '',
+          role: 'advertiser',
+        });
       } else {
-        toast.error('Signup failed');
+        toast.error('Signup failed. Please try again.');
       }
     } catch (error) {
-      toast.error('Signup failed');
+      toast.error('Signup failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -77,53 +86,21 @@ const AuthPage = () => {
         </CardHeader>
         
         <CardContent>
-          <Tabs defaultValue="login" className="w-full">
+          <Tabs defaultValue="signup" className="w-full">
             <TabsList className="grid w-full grid-cols-2 bg-gray-700">
-              <TabsTrigger value="login" className="data-[state=active]:bg-gray-600">Login</TabsTrigger>
               <TabsTrigger value="signup" className="data-[state=active]:bg-gray-600">Sign Up</TabsTrigger>
+              <TabsTrigger value="login" className="data-[state=active]:bg-gray-600">Login</TabsTrigger>
             </TabsList>
             
-            <TabsContent value="login" className="space-y-4 mt-6">
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      type="email"
-                      placeholder="Email"
-                      value={loginForm.email}
-                      onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
-                      className="pl-10 bg-gray-700 border-gray-600 text-white"
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      type="password"
-                      placeholder="Password"
-                      value={loginForm.password}
-                      onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                      className="pl-10 bg-gray-700 border-gray-600 text-white"
-                      required
-                    />
-                  </div>
-                </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? 'Logging in...' : 'Login'}
-                </Button>
-              </form>
-              
-              <div className="mt-4 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
-                <p className="text-sm text-blue-300 mb-2">Admin Login:</p>
-                <p className="text-sm text-gray-300">Email: admin@discordadnet.com</p>
-                <p className="text-sm text-gray-300">Password: Gabriels120?</p>
-              </div>
-            </TabsContent>
-            
             <TabsContent value="signup" className="space-y-4 mt-6">
+              <div className="mb-4 p-4 bg-green-900/20 border border-green-500/30 rounded-lg">
+                <div className="flex items-center space-x-2 text-green-300 mb-2">
+                  <CheckCircle className="w-4 h-4" />
+                  <span className="text-sm font-medium">Join thousands of users already earning!</span>
+                </div>
+                <p className="text-sm text-green-200">✅ Free to join • ✅ Instant setup • ✅ No hidden fees</p>
+              </div>
+              
               <form onSubmit={handleSignup} className="space-y-4">
                 <div className="relative">
                   <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
@@ -168,15 +145,55 @@ const AuthPage = () => {
                     <SelectValue placeholder="Select your role" />
                   </SelectTrigger>
                   <SelectContent className="bg-gray-700 border-gray-600">
-                    <SelectItem value="advertiser">Advertiser</SelectItem>
-                    <SelectItem value="shower">Ad Shower</SelectItem>
+                    <SelectItem value="advertiser">🎯 Advertiser (Promote your business)</SelectItem>
+                    <SelectItem value="shower">💰 Server Owner (Earn money)</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button type="submit" className="w-full" disabled={isLoading}>
+                <Button type="submit" className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700" disabled={isLoading}>
                   <UserPlus className="w-4 h-4 mr-2" />
-                  {isLoading ? 'Creating Account...' : 'Create Account'}
+                  {isLoading ? 'Creating Account...' : 'Create Free Account'}
                 </Button>
               </form>
+            </TabsContent>
+            
+            <TabsContent value="login" className="space-y-4 mt-6">
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      type="email"
+                      placeholder="Email"
+                      value={loginForm.email}
+                      onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                      className="pl-10 bg-gray-700 border-gray-600 text-white"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      type="password"
+                      placeholder="Password"
+                      value={loginForm.password}
+                      onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                      className="pl-10 bg-gray-700 border-gray-600 text-white"
+                      required
+                    />
+                  </div>
+                </div>
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? 'Logging in...' : 'Login to Dashboard'}
+                </Button>
+              </form>
+              
+              <div className="mt-4 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                <p className="text-sm text-blue-300 mb-2">Demo Admin Login:</p>
+                <p className="text-sm text-gray-300">Email: admin@discordadnet.com</p>
+                <p className="text-sm text-gray-300">Password: Gabriels120?</p>
+              </div>
             </TabsContent>
           </Tabs>
         </CardContent>

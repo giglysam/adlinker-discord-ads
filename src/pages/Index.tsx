@@ -11,6 +11,8 @@ import HomePage from '../components/Home/HomePage';
 const Index = () => {
   const { user, loading } = useAuth();
 
+  console.log('Index render - user:', user, 'loading:', loading);
+
   // Show loading only during initial auth check
   if (loading) {
     return (
@@ -31,6 +33,7 @@ const Index = () => {
   }
 
   const renderDashboard = () => {
+    console.log('Rendering dashboard for role:', user.role);
     switch (user.role) {
       case 'advertiser':
         return <AdvertiserDashboard />;
@@ -39,7 +42,7 @@ const Index = () => {
       case 'admin':
         return <AdminDashboard />;
       default:
-        return <div className="text-white">Unknown user role</div>;
+        return <div className="text-white">Unknown user role: {user.role}</div>;
     }
   };
 

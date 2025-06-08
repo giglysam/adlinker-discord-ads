@@ -34,23 +34,43 @@ export const useAuth = () => {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
     let mounted = true;
 
     const initializeAuth = async () => {
       try {
+        console.log('Initializing auth...');
+        
         // Check for existing session
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('Session error:', sessionError);
+          if (mounted) {
+            setLoading(false);
+            setInitialized(true);
+          }
+          return;
+        }
         
         if (session?.user && mounted) {
+          console.log('Found existing session for:', session.user.email);
           await loadUserProfile(session.user);
+        } else {
+          console.log('No existing session found');
+        }
+        
+        if (mounted) {
+          setLoading(false);
+          setInitialized(true);
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
-      } finally {
         if (mounted) {
           setLoading(false);
+          setInitialized(true);
         }
       }
     };
@@ -62,16 +82,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state changed:', event, session?.user?.email);
       
-      if (!mounted) return;
+      if (!mounted || !initialized) return;
       
       if (session?.user) {
         await loadUserProfile(session.user);
       } else {
         setUser(null);
-      }
-      
-      if (!loading) {
-        setLoading(false);
       }
     });
 
@@ -83,6 +99,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loadUserProfile = async (supabaseUser: SupabaseUser) => {
     try {
+      console.log('Loading user profile for:', supabaseUser.email);
+      
       const { data, error } = await supabase
         .from('users')
         .select('*')
@@ -96,6 +114,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (data) {
+        console.log('User profile loaded:', data);
         setUser({
           id: data.id,
           username: data.username,
@@ -105,6 +124,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           webhookNotice: data.webhook_notice,
         });
       }
+      
       setLoading(false);
     } catch (error) {
       console.error('Error in loadUserProfile:', error);
@@ -114,7 +134,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
+      console.log('Attempting login for:', email);
       setLoading(true);
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -126,6 +148,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
+      console.log('Login successful for:', email);
       return !!data.user;
     } catch (error) {
       console.error('Login error:', error);
@@ -137,8 +160,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signup = async (username: string, email: string, password: string, role: 'advertiser' | 'shower'): Promise<boolean> => {
     try {
       setLoading(true);
+      console.log('Attempting signup for:', email);
       
-      // First create the auth user with email confirmation
+      // First create the auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -178,6 +202,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
+      console.log('Signup successful for:', email);
       setLoading(false);
       return true;
     } catch (error) {
@@ -189,6 +214,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
+      console.log('Logging out...');
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error('Logout error:', error.message);
