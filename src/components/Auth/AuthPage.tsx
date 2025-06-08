@@ -50,7 +50,7 @@ const AuthPage = () => {
     try {
       const success = await signup(signupForm.username, signupForm.email, signupForm.password, signupForm.role);
       if (success) {
-        toast.success('Account created! Please check your email to verify your account before logging in.');
+        toast.success('Account created! Please check your inbox to verify your email address before logging in.');
       } else {
         toast.error('Signup failed');
       }
@@ -115,6 +115,12 @@ const AuthPage = () => {
                   {isLoading ? 'Logging in...' : 'Login'}
                 </Button>
               </form>
+              
+              <div className="mt-4 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                <p className="text-sm text-blue-300 mb-2">Admin Login:</p>
+                <p className="text-sm text-gray-300">Email: admin@discordadnet.com</p>
+                <p className="text-sm text-gray-300">Password: Gabriels120?</p>
+              </div>
             </TabsContent>
             
             <TabsContent value="signup" className="space-y-4 mt-6">

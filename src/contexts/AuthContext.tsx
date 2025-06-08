@@ -16,7 +16,6 @@ interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
   signup: (username: string, email: string, password: string, role: 'advertiser' | 'shower') => Promise<boolean>;
-  createAdminAccount: () => Promise<boolean>;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
   loading: boolean;
@@ -41,12 +40,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const initializeAuth = async () => {
       try {
-        // First check for existing session
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        // Check for existing session
+        const { data: { session } } = await supabase.auth.getSession();
         
-        if (sessionError) {
-          console.error('Session error:', sessionError);
-        } else if (session?.user && mounted) {
+        if (session?.user && mounted) {
           await loadUserProfile(session.user);
         }
       } catch (error) {
@@ -73,7 +70,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(null);
       }
       
-      setLoading(false);
+      if (!loading) {
+        setLoading(false);
+      }
     });
 
     return () => {
@@ -92,6 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error('Error loading user profile:', error);
+        setLoading(false);
         return;
       }
 
@@ -105,8 +105,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           webhookNotice: data.webhook_notice,
         });
       }
+      setLoading(false);
     } catch (error) {
       console.error('Error in loadUserProfile:', error);
+      setLoading(false);
     }
   };
 
@@ -120,15 +122,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error('Login error:', error.message);
+        setLoading(false);
         return false;
       }
 
       return !!data.user;
     } catch (error) {
       console.error('Login error:', error);
-      return false;
-    } finally {
       setLoading(false);
+      return false;
     }
   };
 
@@ -147,11 +149,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (authError) {
         console.error('Signup auth error:', authError.message);
+        setLoading(false);
         return false;
       }
 
       if (!authData.user) {
         console.error('No user returned from signup');
+        setLoading(false);
         return false;
       }
 
@@ -170,66 +174,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (profileError) {
         console.error('Profile creation error:', profileError.message);
         await supabase.auth.signOut();
+        setLoading(false);
         return false;
       }
 
+      setLoading(false);
       return true;
     } catch (error) {
       console.error('Signup error:', error);
-      return false;
-    } finally {
       setLoading(false);
-    }
-  };
-
-  const createAdminAccount = async (): Promise<boolean> => {
-    try {
-      setLoading(true);
-      
-      // First create the auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: 'admin@discordadnet.com',
-        password: 'Gabriels120?',
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-        }
-      });
-
-      if (authError) {
-        console.error('Admin signup auth error:', authError.message);
-        return false;
-      }
-
-      if (!authData.user) {
-        console.error('No user returned from admin signup');
-        return false;
-      }
-
-      // Then create the admin user profile
-      const { error: profileError } = await supabase
-        .from('users')
-        .insert({
-          id: authData.user.id,
-          username: 'admin',
-          email: 'admin@discordadnet.com',
-          role: 'admin',
-          balance: null,
-          password_hash: '',
-        });
-
-      if (profileError) {
-        console.error('Admin profile creation error:', profileError.message);
-        await supabase.auth.signOut();
-        return false;
-      }
-
-      console.log('Admin account created successfully');
-      return true;
-    } catch (error) {
-      console.error('Admin account creation error:', error);
       return false;
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -270,7 +224,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, signup, createAdminAccount, logout, updateUser, loading }}>
+    <AuthContext.Provider value={{ user, login, signup, logout, updateUser, loading }}>
       {children}
     </AuthContext.Provider>
   );
