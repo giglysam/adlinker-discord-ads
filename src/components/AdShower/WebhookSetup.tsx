@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,10 +22,42 @@ const WebhookSetup = () => {
   const { user } = useAuth();
   const [webhooks, setWebhooks] = useState<WebhookData[]>([]);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [newWebhook, setNewWebhook] = useState({
     url: '',
     serverName: '',
   });
+
+  useEffect(() => {
+    if (user?.id) {
+      loadWebhooks();
+    }
+  }, [user?.id]);
+
+  const loadWebhooks = async () => {
+    if (!user?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('webhooks')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading webhooks:', error);
+        toast.error('Failed to load webhooks');
+        return;
+      }
+
+      setWebhooks(data || []);
+    } catch (error) {
+      console.error('Error loading webhooks:', error);
+      toast.error('Failed to load webhooks');
+    } finally {
+      setInitialLoading(false);
+    }
+  };
 
   const addWebhook = async () => {
     if (!newWebhook.url || !newWebhook.serverName) {
@@ -57,7 +89,7 @@ const WebhookSetup = () => {
         return;
       }
 
-      setWebhooks([...webhooks, data]);
+      setWebhooks([data, ...webhooks]);
       setNewWebhook({ url: '', serverName: '' });
       toast.success('Webhook added successfully!');
     } catch (error) {
@@ -106,6 +138,16 @@ const WebhookSetup = () => {
       toast.error('Webhook test failed');
     }
   };
+
+  if (initialLoading) {
+    return (
+      <Card className="bg-gray-800 border-gray-700">
+        <CardContent className="p-6">
+          <div className="text-white text-center">Loading webhooks...</div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="bg-gray-800 border-gray-700">

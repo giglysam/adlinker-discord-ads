@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,132 +22,246 @@ import {
   TrendingUp,
   Shield
 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Ad {
-  id: number;
+  id: string;
   title: string;
   url: string;
-  imageUrl: string;
+  image_url: string;
   text: string;
   status: 'pending' | 'public' | 'stopped';
-  advertiser: string;
-  createdAt: string;
+  user_id: string;
+  created_at: string;
   impressions: number;
+  username?: string;
 }
 
 interface User {
-  id: number;
+  id: string;
   username: string;
   email: string;
-  role: 'advertiser' | 'shower';
+  role: 'advertiser' | 'shower' | 'admin';
   balance?: number;
+  created_at: string;
   adsCreated?: number;
   webhooks?: number;
-  joinedAt: string;
 }
 
 interface WebhookLog {
-  id: number;
-  webhook: string;
-  server: string;
+  id: string;
+  webhook_url: string;
+  server_name: string;
   status: 'success' | 'error';
-  adId: number;
-  timestamp: string;
-  errorMessage?: string;
+  ad_id: string;
+  created_at: string;
+  error_message?: string;
 }
 
 const AdminDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [ads, setAds] = useState<Ad[]>([
-    {
-      id: 1,
-      title: 'Gaming Website',
-      url: 'https://mygamingsite.com',
-      imageUrl: 'https://images.unsplash.com/photo-1538481199464-7160b8b05f62?w=400',
-      text: 'Check out the best gaming content and reviews!',
-      status: 'pending',
-      advertiser: 'gamer123',
-      createdAt: '2024-01-15',
-      impressions: 0,
-    },
-    {
-      id: 2,
-      title: 'Tech Blog',
-      url: 'https://mytechblog.com',
-      imageUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=400',
-      text: 'Latest tech news and tutorials for developers.',
-      status: 'public',
-      advertiser: 'techwriter',
-      createdAt: '2024-01-10',
-      impressions: 1250,
-    },
-  ]);
+  const [ads, setAds] = useState<Ad[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [webhookLogs, setWebhookLogs] = useState<WebhookLog[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [users, setUsers] = useState<User[]>([
-    {
-      id: 1,
-      username: 'gamer123',
-      email: 'gamer@example.com',
-      role: 'advertiser',
-      adsCreated: 3,
-      joinedAt: '2024-01-10',
-    },
-    {
-      id: 2,
-      username: 'shower1',
-      email: 'shower@example.com',
-      role: 'shower',
-      balance: 0.00045,
-      webhooks: 2,
-      joinedAt: '2024-01-05',
-    },
-  ]);
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  const [webhookLogs, setWebhookLogs] = useState<WebhookLog[]>([
-    {
-      id: 1,
-      webhook: 'https://discord.com/api/webhooks/123/abc',
-      server: 'Gaming Community',
-      status: 'success',
-      adId: 2,
-      timestamp: '2024-01-15 14:30:00',
-    },
-    {
-      id: 2,
-      webhook: 'https://discord.com/api/webhooks/456/def',
-      server: 'Tech Discussion',
-      status: 'error',
-      adId: 2,
-      timestamp: '2024-01-15 14:27:00',
-      errorMessage: 'Webhook permissions denied',
-    },
-  ]);
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      await Promise.all([
+        loadAds(),
+        loadUsers(),
+        loadWebhookLogs()
+      ]);
+    } catch (error) {
+      console.error('Error loading data:', error);
+      toast.error('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const handleApproveAd = (id: number) => {
+  const loadAds = async () => {
+    const { data, error } = await supabase
+      .from('ads')
+      .select(`
+        *,
+        users!inner(username)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error loading ads:', error);
+      return;
+    }
+
+    const adsWithUsernames = data.map(ad => ({
+      ...ad,
+      username: ad.users?.username || 'Unknown'
+    }));
+
+    setAds(adsWithUsernames);
+  };
+
+  const loadUsers = async () => {
+    const { data: usersData, error: usersError } = await supabase
+      .from('users')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (usersError) {
+      console.error('Error loading users:', usersError);
+      return;
+    }
+
+    // Get ad counts for advertisers
+    const { data: adCounts, error: adCountsError } = await supabase
+      .from('ads')
+      .select('user_id')
+      .eq('status', 'public');
+
+    // Get webhook counts for showers
+    const { data: webhookCounts, error: webhookCountsError } = await supabase
+      .from('webhooks')
+      .select('user_id')
+      .eq('is_active', true);
+
+    const adCountsByUser = adCounts?.reduce((acc, ad) => {
+      acc[ad.user_id] = (acc[ad.user_id] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>) || {};
+
+    const webhookCountsByUser = webhookCounts?.reduce((acc, webhook) => {
+      acc[webhook.user_id] = (acc[webhook.user_id] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>) || {};
+
+    const enrichedUsers = usersData.map(user => ({
+      ...user,
+      adsCreated: user.role === 'advertiser' ? adCountsByUser[user.id] || 0 : undefined,
+      webhooks: user.role === 'shower' ? webhookCountsByUser[user.id] || 0 : undefined,
+    }));
+
+    setUsers(enrichedUsers);
+  };
+
+  const loadWebhookLogs = async () => {
+    const { data, error } = await supabase
+      .from('ad_deliveries')
+      .select(`
+        id,
+        status,
+        error_message,
+        created_at,
+        ad_id,
+        webhook_id,
+        webhooks!inner(webhook_url, server_name)
+      `)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      console.error('Error loading webhook logs:', error);
+      return;
+    }
+
+    const logs = data.map(log => ({
+      id: log.id,
+      webhook_url: log.webhooks?.webhook_url || '',
+      server_name: log.webhooks?.server_name || 'Unknown Server',
+      status: log.status as 'success' | 'error',
+      ad_id: log.ad_id,
+      created_at: log.created_at,
+      error_message: log.error_message,
+    }));
+
+    setWebhookLogs(logs);
+  };
+
+  const handleApproveAd = async (id: string) => {
+    const { error } = await supabase
+      .from('ads')
+      .update({ status: 'public' })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error approving ad:', error);
+      toast.error('Failed to approve ad');
+      return;
+    }
+
     setAds(ads.map(ad => 
       ad.id === id ? { ...ad, status: 'public' as const } : ad
     ));
     toast.success('Ad approved and made public');
   };
 
-  const handleStopAd = (id: number) => {
+  const handleStopAd = async (id: string) => {
+    const { error } = await supabase
+      .from('ads')
+      .update({ status: 'stopped' })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error stopping ad:', error);
+      toast.error('Failed to stop ad');
+      return;
+    }
+
     setAds(ads.map(ad => 
       ad.id === id ? { ...ad, status: 'stopped' as const } : ad
     ));
     toast.success('Ad stopped');
   };
 
-  const handleDeleteAd = (id: number) => {
+  const handleDeleteAd = async (id: string) => {
+    const { error } = await supabase
+      .from('ads')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting ad:', error);
+      toast.error('Failed to delete ad');
+      return;
+    }
+
     setAds(ads.filter(ad => ad.id !== id));
     toast.success('Ad deleted');
   };
 
-  const handleDeleteUser = (id: number) => {
+  const handleDeleteUser = async (id: string) => {
+    const { error } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting user:', error);
+      toast.error('Failed to delete user');
+      return;
+    }
+
     setUsers(users.filter(user => user.id !== id));
     toast.success('User deleted');
   };
 
-  const handleUpdateBalance = (id: number, newBalance: number) => {
+  const handleUpdateBalance = async (id: string, newBalance: number) => {
+    const { error } = await supabase
+      .from('users')
+      .update({ balance: newBalance })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error updating balance:', error);
+      toast.error('Failed to update balance');
+      return;
+    }
+
     setUsers(users.map(user => 
       user.id === id ? { ...user, balance: newBalance } : user
     ));
@@ -191,13 +305,21 @@ const AdminDashboard = () => {
 
   const filteredAds = ads.filter(ad => 
     ad.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    ad.advertiser.toLowerCase().includes(searchTerm.toLowerCase())
+    (ad.username && ad.username.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const filteredUsers = users.filter(user =>
     user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-white text-xl">Loading dashboard...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 p-6">
@@ -324,72 +446,80 @@ const AdminDashboard = () => {
                 <CardTitle className="text-white">Advertisement Management</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {filteredAds.map((ad) => (
-                    <div key={ad.id} className="flex items-start space-x-4 p-4 bg-gray-700/50 rounded-lg">
-                      <img
-                        src={ad.imageUrl}
-                        alt={ad.title}
-                        className="w-20 h-20 rounded-lg object-cover"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <h3 className="text-white font-semibold">{ad.title}</h3>
-                            <p className="text-gray-400 text-sm">by {ad.advertiser}</p>
+                {filteredAds.length === 0 ? (
+                  <p className="text-gray-400 text-center py-8">
+                    {searchTerm ? 'No ads found matching your search.' : 'No ads created yet.'}
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {filteredAds.map((ad) => (
+                      <div key={ad.id} className="flex items-start space-x-4 p-4 bg-gray-700/50 rounded-lg">
+                        {ad.image_url && (
+                          <img
+                            src={ad.image_url}
+                            alt={ad.title}
+                            className="w-20 h-20 rounded-lg object-cover"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <h3 className="text-white font-semibold">{ad.title}</h3>
+                              <p className="text-gray-400 text-sm">by {ad.username}</p>
+                            </div>
+                            <Badge className={getStatusColor(ad.status)}>
+                              {getStatusIcon(ad.status)}
+                              <span className="ml-1 capitalize">{ad.status}</span>
+                            </Badge>
                           </div>
-                          <Badge className={getStatusColor(ad.status)}>
-                            {getStatusIcon(ad.status)}
-                            <span className="ml-1 capitalize">{ad.status}</span>
-                          </Badge>
-                        </div>
-                        <p className="text-gray-300 text-sm mb-2">{ad.text}</p>
-                        <a
-                          href={ad.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-400 text-sm hover:underline mb-2 inline-block"
-                        >
-                          {ad.url}
-                        </a>
-                        <div className="flex items-center justify-between">
-                          <div className="text-sm text-gray-400">
-                            Created: {ad.createdAt} | Impressions: {ad.impressions}
-                          </div>
-                          <div className="flex space-x-2">
-                            {ad.status === 'pending' && (
-                              <Button
-                                size="sm"
-                                onClick={() => handleApproveAd(ad.id)}
-                                className="bg-green-600 hover:bg-green-700"
-                              >
-                                Approve
-                              </Button>
-                            )}
-                            {ad.status === 'public' && (
+                          <p className="text-gray-300 text-sm mb-2">{ad.text}</p>
+                          <a
+                            href={ad.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-400 text-sm hover:underline mb-2 inline-block"
+                          >
+                            {ad.url}
+                          </a>
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm text-gray-400">
+                              Created: {new Date(ad.created_at).toLocaleDateString()} | Impressions: {ad.impressions}
+                            </div>
+                            <div className="flex space-x-2">
+                              {ad.status === 'pending' && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleApproveAd(ad.id)}
+                                  className="bg-green-600 hover:bg-green-700"
+                                >
+                                  Approve
+                                </Button>
+                              )}
+                              {ad.status === 'public' && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleStopAd(ad.id)}
+                                  className="border-yellow-600 text-yellow-600 hover:bg-yellow-600"
+                                >
+                                  Stop
+                                </Button>
+                              )}
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleStopAd(ad.id)}
-                                className="border-yellow-600 text-yellow-600 hover:bg-yellow-600"
+                                onClick={() => handleDeleteAd(ad.id)}
+                                className="border-red-600 text-red-600 hover:bg-red-600 hover:text-white"
                               >
-                                Stop
+                                <Trash2 className="w-4 h-4" />
                               </Button>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleDeleteAd(ad.id)}
-                              className="border-red-600 text-red-600 hover:bg-red-600 hover:text-white"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -400,58 +530,70 @@ const AdminDashboard = () => {
                 <CardTitle className="text-white">User Management</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {filteredUsers.map((user) => (
-                    <div key={user.id} className="flex items-center justify-between p-4 bg-gray-700/50 rounded-lg">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-2">
-                          <h3 className="text-white font-semibold">{user.username}</h3>
-                          <Badge className={user.role === 'advertiser' ? 'bg-blue-900/30 text-blue-400' : 'bg-green-900/30 text-green-400'}>
-                            {user.role}
-                          </Badge>
+                {filteredUsers.length === 0 ? (
+                  <p className="text-gray-400 text-center py-8">
+                    {searchTerm ? 'No users found matching your search.' : 'No users registered yet.'}
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {filteredUsers.map((user) => (
+                      <div key={user.id} className="flex items-center justify-between p-4 bg-gray-700/50 rounded-lg">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-3 mb-2">
+                            <h3 className="text-white font-semibold">{user.username}</h3>
+                            <Badge className={
+                              user.role === 'advertiser' ? 'bg-blue-900/30 text-blue-400' : 
+                              user.role === 'admin' ? 'bg-purple-900/30 text-purple-400' :
+                              'bg-green-900/30 text-green-400'
+                            }>
+                              {user.role}
+                            </Badge>
+                          </div>
+                          <p className="text-gray-400 text-sm mb-1">{user.email}</p>
+                          <div className="flex items-center space-x-4 text-sm text-gray-400">
+                            <span>Joined: {new Date(user.created_at).toLocaleDateString()}</span>
+                            {user.role === 'advertiser' && <span>Ads: {user.adsCreated}</span>}
+                            {user.role === 'shower' && (
+                              <>
+                                <span>Balance: ${(user.balance || 0).toFixed(5)}</span>
+                                <span>Webhooks: {user.webhooks}</span>
+                              </>
+                            )}
+                          </div>
                         </div>
-                        <p className="text-gray-400 text-sm mb-1">{user.email}</p>
-                        <div className="flex items-center space-x-4 text-sm text-gray-400">
-                          <span>Joined: {user.joinedAt}</span>
-                          {user.role === 'advertiser' && <span>Ads: {user.adsCreated}</span>}
+                        <div className="flex items-center space-x-3">
                           {user.role === 'shower' && (
-                            <>
-                              <span>Balance: ${(user.balance || 0).toFixed(5)}</span>
-                              <span>Webhooks: {user.webhooks}</span>
-                            </>
+                            <div className="flex items-center space-x-2">
+                              <Input
+                                type="number"
+                                step="0.00001"
+                                placeholder="New balance"
+                                className="w-32 bg-gray-700 border-gray-600 text-white text-sm"
+                                onKeyPress={(e) => {
+                                  if (e.key === 'Enter') {
+                                    const target = e.target as HTMLInputElement;
+                                    handleUpdateBalance(user.id, parseFloat(target.value) || 0);
+                                    target.value = '';
+                                  }
+                                }}
+                              />
+                            </div>
+                          )}
+                          {user.role !== 'admin' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleDeleteUser(user.id)}
+                              className="border-red-600 text-red-600 hover:bg-red-600 hover:text-white"
+                            >
+                              <UserX className="w-4 h-4" />
+                            </Button>
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center space-x-3">
-                        {user.role === 'shower' && (
-                          <div className="flex items-center space-x-2">
-                            <Input
-                              type="number"
-                              step="0.00001"
-                              placeholder="New balance"
-                              className="w-32 bg-gray-700 border-gray-600 text-white text-sm"
-                              onKeyPress={(e) => {
-                                if (e.key === 'Enter') {
-                                  const target = e.target as HTMLInputElement;
-                                  handleUpdateBalance(user.id, parseFloat(target.value) || 0);
-                                  target.value = '';
-                                }
-                              }}
-                            />
-                          </div>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDeleteUser(user.id)}
-                          className="border-red-600 text-red-600 hover:bg-red-600 hover:text-white"
-                        >
-                          <UserX className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -462,29 +604,35 @@ const AdminDashboard = () => {
                 <CardTitle className="text-white">Webhook Delivery Logs</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {webhookLogs.map((log) => (
-                    <div key={log.id} className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        <Badge className={getStatusColor(log.status)}>
-                          {getStatusIcon(log.status)}
-                          <span className="ml-1 capitalize">{log.status}</span>
-                        </Badge>
-                        <div>
-                          <p className="text-white text-sm font-medium">{log.server}</p>
-                          <p className="text-gray-400 text-xs">{log.webhook}</p>
-                          {log.errorMessage && (
-                            <p className="text-red-400 text-xs">Error: {log.errorMessage}</p>
-                          )}
+                {webhookLogs.length === 0 ? (
+                  <p className="text-gray-400 text-center py-8">
+                    No webhook deliveries yet.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {webhookLogs.map((log) => (
+                      <div key={log.id} className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
+                        <div className="flex items-center space-x-4">
+                          <Badge className={getStatusColor(log.status)}>
+                            {getStatusIcon(log.status)}
+                            <span className="ml-1 capitalize">{log.status}</span>
+                          </Badge>
+                          <div>
+                            <p className="text-white text-sm font-medium">{log.server_name}</p>
+                            <p className="text-gray-400 text-xs truncate max-w-md">{log.webhook_url}</p>
+                            {log.error_message && (
+                              <p className="text-red-400 text-xs">Error: {log.error_message}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-gray-400 text-xs">Ad ID: {log.ad_id}</p>
+                          <p className="text-gray-500 text-xs">{new Date(log.created_at).toLocaleString()}</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-gray-400 text-xs">Ad ID: {log.adId}</p>
-                        <p className="text-gray-500 text-xs">{log.timestamp}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

@@ -5,7 +5,6 @@ import AuthPage from '../components/Auth/AuthPage';
 import AdvertiserDashboard from '../components/Advertiser/AdvertiserDashboard';
 import AdShowerDashboard from '../components/AdShower/AdShowerDashboard';
 import AdminDashboard from '../components/Admin/AdminDashboard';
-import AdminSetup from '../components/Admin/AdminSetup';
 import Navbar from '../components/Layout/Navbar';
 import HomePage from '../components/Home/HomePage';
 
@@ -34,8 +33,7 @@ const Index = () => {
               <h2 className="text-3xl font-bold text-white mb-4">Get Started Today</h2>
               <p className="text-xl text-gray-400">Join thousands of users already earning with DiscordAdNet</p>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-              <AdminSetup />
+            <div className="flex justify-center">
               <AuthPage />
             </div>
           </div>
