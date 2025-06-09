@@ -14,7 +14,7 @@ interface WebhookData {
   id: string;
   webhook_url: string;
   server_name: string;
-  status: 'active' | 'inactive';
+  is_active: boolean;
   created_at: string;
 }
 
@@ -46,7 +46,7 @@ const WebhookSetup = () => {
           user_id: user?.id,
           webhook_url: newWebhook.url,
           server_name: newWebhook.serverName,
-          status: 'active',
+          is_active: true,
         })
         .select()
         .single();
@@ -169,9 +169,9 @@ const WebhookSetup = () => {
                 <div className="flex-1">
                   <div className="flex items-center space-x-3 mb-2">
                     <h4 className="text-white font-medium">{webhook.server_name}</h4>
-                    <Badge className={webhook.status === 'active' ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}>
-                      {webhook.status === 'active' ? <CheckCircle className="w-3 h-3 mr-1" /> : null}
-                      {webhook.status}
+                    <Badge className={webhook.is_active ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}>
+                      {webhook.is_active ? <CheckCircle className="w-3 h-3 mr-1" /> : null}
+                      {webhook.is_active ? 'active' : 'inactive'}
                     </Badge>
                   </div>
                   <p className="text-gray-400 text-sm font-mono truncate">
