@@ -5,6 +5,7 @@ import AuthPage from '../components/Auth/AuthPage';
 import AdvertiserDashboard from '../components/Advertiser/AdvertiserDashboard';
 import AdShowerDashboard from '../components/AdShower/AdShowerDashboard';
 import AdminDashboard from '../components/Admin/AdminDashboard';
+import AdminSetup from '../components/Admin/AdminSetup';
 import Navbar from '../components/Layout/Navbar';
 import HomePage from '../components/Home/HomePage';
 
@@ -22,12 +23,17 @@ const Index = () => {
     );
   }
 
-  // Show homepage and auth page if no user
+  // Show homepage, admin setup, and auth page if no user
   if (!user) {
     return (
       <>
         <HomePage />
-        <AuthPage />
+        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
+          <div className="space-y-8">
+            <AdminSetup />
+            <AuthPage />
+          </div>
+        </div>
       </>
     );
   }
