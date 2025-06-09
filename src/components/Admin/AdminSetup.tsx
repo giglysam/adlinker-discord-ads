@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Settings, CheckCircle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 const AdminSetup = () => {
   const [isCreating, setIsCreating] = useState(false);
@@ -13,20 +14,24 @@ const AdminSetup = () => {
     setIsCreating(true);
     
     try {
-      const response = await fetch('/api/create-admin-user', {
+      console.log('Creating admin user via edge function...');
+      
+      const { data, error } = await supabase.functions.invoke('create-admin-user', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
       });
 
-      const data = await response.json();
+      if (error) {
+        console.error('Edge function error:', error);
+        toast.error('Failed to create admin user: ' + error.message);
+        return;
+      }
 
-      if (data.success) {
+      if (data && data.success) {
         toast.success('Admin user created successfully! You can now log in with admin@discordadnet.com');
         setIsCreated(true);
       } else {
-        toast.error(data.error || 'Failed to create admin user');
+        console.error('Unexpected response:', data);
+        toast.error(data?.error || 'Failed to create admin user');
       }
     } catch (error) {
       console.error('Error creating admin user:', error);

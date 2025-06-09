@@ -23,18 +23,24 @@ const Index = () => {
     );
   }
 
-  // Show homepage, admin setup, and auth page if no user
+  // Show homepage with integrated auth if no user
   if (!user) {
     return (
-      <>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
         <HomePage />
-        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
-          <div className="space-y-8">
-            <AdminSetup />
-            <AuthPage />
+        <div className="py-8 bg-gray-900/50" id="auth-section">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-white mb-4">Get Started Today</h2>
+              <p className="text-xl text-gray-400">Join thousands of users already earning with DiscordAdNet</p>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+              <AdminSetup />
+              <AuthPage />
+            </div>
           </div>
         </div>
-      </>
+      </div>
     );
   }
 
