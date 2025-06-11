@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -93,26 +94,72 @@ const WebhookSetup = () => {
     }
   };
 
+  const validateDiscordWebhook = (url: string): boolean => {
+    // More comprehensive Discord webhook URL validation
+    const discordWebhookRegex = /^https:\/\/discord(?:app)?\.com\/api\/webhooks\/\d+\/[\w-]+$/;
+    return discordWebhookRegex.test(url);
+  };
+
+  const testWebhookConnection = async (webhookUrl: string): Promise<boolean> => {
+    try {
+      const testMessage = {
+        embeds: [{
+          title: "🔗 Webhook Connection Test",
+          description: "This is a test message to verify your Discord webhook is working correctly!",
+          color: 0x00ff00,
+          footer: {
+            text: "DiscordAdNet - Webhook Test"
+          },
+          timestamp: new Date().toISOString()
+        }]
+      };
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(testMessage)
+      });
+
+      return response.ok;
+    } catch (error) {
+      console.error('Webhook test failed:', error);
+      return false;
+    }
+  };
+
   const addWebhook = async () => {
     if (!newWebhook.url || !newWebhook.serverName) {
       toast.error('Please fill in all fields');
       return;
     }
 
-    if (!newWebhook.url.includes('discord.com/api/webhooks/')) {
-      toast.error('Please enter a valid Discord webhook URL');
+    if (!validateDiscordWebhook(newWebhook.url)) {
+      toast.error('Please enter a valid Discord webhook URL (format: https://discord.com/api/webhooks/ID/TOKEN)');
       return;
     }
 
     setLoading(true);
     try {
+      // Test the webhook before adding it
+      toast.info('Testing webhook connection...');
+      const isWorking = await testWebhookConnection(newWebhook.url);
+      
+      if (!isWorking) {
+        toast.error('Webhook test failed! Please check your webhook URL and permissions.');
+        setLoading(false);
+        return;
+      }
+
+      // Add webhook to database - immediately active
       const { data, error } = await supabase
         .from('webhooks')
         .insert({
           user_id: user?.id,
           webhook_url: newWebhook.url,
           server_name: newWebhook.serverName,
-          is_active: true,
+          is_active: true, // Immediately active
         })
         .select()
         .single();
@@ -125,10 +172,15 @@ const WebhookSetup = () => {
 
       setWebhooks([data, ...webhooks]);
       setNewWebhook({ url: '', serverName: '' });
-      toast.success('Webhook added successfully! Automation will start automatically.');
+      toast.success('Webhook added successfully and is now active!');
       
-      // Check automation status after adding webhook
-      setTimeout(checkAutomationStatus, 2000);
+      // Immediately start automation if this is the first webhook
+      setTimeout(async () => {
+        await checkAutomationStatus();
+        // Trigger first ad distribution
+        await triggerManualDistribution();
+      }, 1000);
+
     } catch (error) {
       console.error('Error adding webhook:', error);
       toast.error('Failed to add webhook');
@@ -161,16 +213,12 @@ const WebhookSetup = () => {
 
   const testWebhook = async (webhookUrl: string) => {
     try {
-      const { data, error } = await supabase.functions.invoke('send-test-ad', {
-        body: { webhookUrl },
-      });
-
-      if (error) {
-        toast.error('Webhook test failed');
-        return;
+      const isWorking = await testWebhookConnection(webhookUrl);
+      if (isWorking) {
+        toast.success('Webhook test successful!');
+      } else {
+        toast.error('Webhook test failed! Please check your webhook URL.');
       }
-
-      toast.success('Test message sent successfully!');
     } catch (error) {
       console.error('Error testing webhook:', error);
       toast.error('Webhook test failed');
@@ -242,7 +290,7 @@ const WebhookSetup = () => {
           </div>
         </CardTitle>
         <p className="text-gray-400 text-sm">
-          Add your Discord server webhooks to start receiving ads automatically every 3 minutes
+          Add your Discord server webhooks to start receiving ads automatically. All webhooks are tested before activation.
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -257,15 +305,15 @@ const WebhookSetup = () => {
               className="bg-blue-600 hover:bg-blue-700"
             >
               <TrendingUp className="w-4 h-4 mr-2" />
-              Manual Trigger
+              Trigger Now
             </Button>
           </div>
           <div className="text-sm text-gray-300">
             {automationStatus === 'running' && (
-              <p className="text-green-400">✅ Automation is running - ads will be distributed every 3 minutes</p>
+              <p className="text-green-400">✅ Automation is running - ads are being distributed automatically</p>
             )}
             {automationStatus === 'stopped' && (
-              <p className="text-red-400">⚠️ Automation is stopped - add webhooks and ensure ads are available</p>
+              <p className="text-red-400">⚠️ Automation is stopped - add working webhooks to start</p>
             )}
             {automationStatus === 'checking' && (
               <p className="text-yellow-400">🔄 Checking automation status...</p>
@@ -291,13 +339,13 @@ const WebhookSetup = () => {
               <Label htmlFor="webhookUrl" className="text-gray-300">Discord Webhook URL</Label>
               <Input
                 id="webhookUrl"
-                placeholder="https://discord.com/api/webhooks/..."
+                placeholder="https://discord.com/api/webhooks/123456789/abcdef..."
                 value={newWebhook.url}
                 onChange={(e) => setNewWebhook({ ...newWebhook, url: e.target.value })}
                 className="bg-gray-600 border-gray-500 text-white"
               />
               <p className="text-xs text-gray-400 mt-1">
-                Get this from your Discord server settings → Integrations → Webhooks
+                Get this from your Discord server: Server Settings → Integrations → Webhooks
               </p>
             </div>
           </div>
@@ -306,13 +354,13 @@ const WebhookSetup = () => {
             disabled={loading}
             className="w-full bg-blue-600 hover:bg-blue-700"
           >
-            {loading ? 'Adding...' : 'Add Webhook'}
+            {loading ? 'Testing & Adding...' : 'Test & Add Webhook'}
           </Button>
         </div>
 
         {/* Webhook List */}
         <div className="space-y-3">
-          <h3 className="text-white font-medium">Your Webhooks</h3>
+          <h3 className="text-white font-medium">Your Active Webhooks</h3>
           {webhooks.length === 0 ? (
             <p className="text-gray-400 text-center py-8">
               No webhooks configured yet. Add your first webhook above to start earning!
@@ -373,14 +421,18 @@ const WebhookSetup = () => {
 
         {/* Instructions */}
         <div className="p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
-          <h4 className="text-blue-300 font-medium mb-2">How to get your Discord webhook:</h4>
+          <h4 className="text-blue-300 font-medium mb-2">How to get your Discord webhook URL:</h4>
           <ol className="text-blue-200 text-sm space-y-1 list-decimal list-inside">
             <li>Go to your Discord server settings</li>
             <li>Click on "Integrations" in the left sidebar</li>
             <li>Click "Create Webhook" or edit an existing one</li>
+            <li>Set a name and select the channel where ads will appear</li>
             <li>Copy the webhook URL and paste it above</li>
             <li>Make sure the webhook has permission to send messages</li>
           </ol>
+          <p className="text-blue-300 text-sm mt-2 font-medium">
+            ⚡ Your webhook will be tested automatically and activated immediately if it works!
+          </p>
         </div>
       </CardContent>
     </Card>
