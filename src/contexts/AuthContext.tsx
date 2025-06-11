@@ -88,6 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await loadUserProfile(session.user);
       } else {
         setUser(null);
+        setLoading(false);
       }
     });
 
@@ -148,8 +149,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
-      console.log('Login successful for:', email);
-      return !!data.user;
+      if (data.user) {
+        console.log('Login successful for:', email);
+        // Force a page reload to reset the application state
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 100);
+        return true;
+      }
+      
+      setLoading(false);
+      return false;
     } catch (error) {
       console.error('Login error:', error);
       setLoading(false);
@@ -215,13 +225,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     try {
       console.log('Logging out...');
+      setLoading(true);
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error('Logout error:', error.message);
       }
       setUser(null);
+      setLoading(false);
+      // Force a page reload to reset the application state
+      window.location.href = '/';
     } catch (error) {
       console.error('Logout error:', error);
+      setLoading(false);
     }
   };
 
