@@ -172,6 +172,54 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_logs: {
+        Row: {
+          ad_id: string | null
+          created_at: string | null
+          delivered_at: string | null
+          error_message: string | null
+          id: string
+          response_status: number | null
+          status: string
+          webhook_id: string | null
+        }
+        Insert: {
+          ad_id?: string | null
+          created_at?: string | null
+          delivered_at?: string | null
+          error_message?: string | null
+          id?: string
+          response_status?: number | null
+          status: string
+          webhook_id?: string | null
+        }
+        Update: {
+          ad_id?: string | null
+          created_at?: string | null
+          delivered_at?: string | null
+          error_message?: string | null
+          id?: string
+          response_status?: number | null
+          status?: string
+          webhook_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_logs_ad_id_fkey"
+            columns: ["ad_id"]
+            isOneToOne: false
+            referencedRelation: "ads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "webhook_logs_webhook_id_fkey"
+            columns: ["webhook_id"]
+            isOneToOne: false
+            referencedRelation: "webhooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webhooks: {
         Row: {
           ads_sent: number | null
@@ -180,7 +228,10 @@ export type Database = {
           is_active: boolean | null
           last_error: string | null
           last_sent_at: string | null
+          last_success_at: string | null
           server_name: string | null
+          total_errors: number | null
+          total_sent: number | null
           updated_at: string
           user_id: string
           webhook_url: string
@@ -192,7 +243,10 @@ export type Database = {
           is_active?: boolean | null
           last_error?: string | null
           last_sent_at?: string | null
+          last_success_at?: string | null
           server_name?: string | null
+          total_errors?: number | null
+          total_sent?: number | null
           updated_at?: string
           user_id: string
           webhook_url: string
@@ -204,7 +258,10 @@ export type Database = {
           is_active?: boolean | null
           last_error?: string | null
           last_sent_at?: string | null
+          last_success_at?: string | null
           server_name?: string | null
+          total_errors?: number | null
+          total_sent?: number | null
           updated_at?: string
           user_id?: string
           webhook_url?: string
@@ -224,7 +281,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      increment_user_balance: {
+        Args: { user_id: string; amount: number }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

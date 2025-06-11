@@ -18,9 +18,9 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    console.log('Starting ad distribution...')
+    console.log('Starting automated ad distribution...')
 
-    // Get all active ads
+    // Get all public ads
     const { data: ads, error: adsError } = await supabase
       .from('ads')
       .select('*')
@@ -31,13 +31,13 @@ serve(async (req) => {
       throw adsError
     }
 
-    console.log(`Found ${ads?.length || 0} active ads`)
+    console.log(`Found ${ads?.length || 0} public ads`)
 
     // Get all active webhooks
     const { data: webhooks, error: webhooksError } = await supabase
       .from('webhooks')
       .select('*')
-      .eq('status', 'active')
+      .eq('is_active', true)
 
     if (webhooksError) {
       console.error('Error fetching webhooks:', webhooksError)
@@ -48,7 +48,7 @@ serve(async (req) => {
 
     if (!ads || ads.length === 0) {
       return new Response(
-        JSON.stringify({ message: 'No active ads to distribute' }),
+        JSON.stringify({ message: 'No public ads to distribute' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -74,9 +74,9 @@ serve(async (req) => {
             title: randomAd.title,
             description: randomAd.text,
             color: 0x5865F2,
-            image: {
+            image: randomAd.image_url ? {
               url: randomAd.image_url
-            },
+            } : undefined,
             fields: [
               {
                 name: "🔗 Learn More",
@@ -101,6 +101,8 @@ serve(async (req) => {
           body: JSON.stringify(adMessage)
         })
 
+        const responseText = await response.text()
+
         if (response.ok) {
           successCount++
           
@@ -110,13 +112,34 @@ serve(async (req) => {
             .update({ impressions: (randomAd.impressions || 0) + 1 })
             .eq('id', randomAd.id)
 
-          // Log successful delivery
+          // Update webhook stats
+          await supabase
+            .from('webhooks')
+            .update({ 
+              total_sent: (webhook.total_sent || 0) + 1,
+              last_success_at: new Date().toISOString(),
+              last_sent_at: new Date().toISOString()
+            })
+            .eq('id', webhook.id)
+
+          // Log successful delivery to ad_deliveries table
+          await supabase
+            .from('ad_deliveries')
+            .insert({
+              webhook_id: webhook.id,
+              ad_id: randomAd.id,
+              status: 'success',
+              earning_amount: 0.00001
+            })
+
+          // Log to webhook_logs for monitoring
           await supabase
             .from('webhook_logs')
             .insert({
               webhook_id: webhook.id,
               ad_id: randomAd.id,
               status: 'success',
+              response_status: response.status,
               delivered_at: new Date().toISOString()
             })
 
@@ -129,17 +152,37 @@ serve(async (req) => {
 
         } else {
           errorCount++
-          const errorText = await response.text()
-          console.error(`Webhook delivery failed for ${webhook.server_name}:`, response.status, errorText)
+          console.error(`Webhook delivery failed for ${webhook.server_name}:`, response.status, responseText)
           
-          // Log failed delivery
+          // Update webhook error stats
+          await supabase
+            .from('webhooks')
+            .update({ 
+              total_errors: (webhook.total_errors || 0) + 1,
+              last_error: `${response.status}: ${responseText}`,
+              last_sent_at: new Date().toISOString()
+            })
+            .eq('id', webhook.id)
+
+          // Log failed delivery to ad_deliveries table
+          await supabase
+            .from('ad_deliveries')
+            .insert({
+              webhook_id: webhook.id,
+              ad_id: randomAd.id,
+              status: 'error',
+              error_message: `${response.status}: ${responseText}`
+            })
+
+          // Log to webhook_logs for monitoring
           await supabase
             .from('webhook_logs')
             .insert({
               webhook_id: webhook.id,
               ad_id: randomAd.id,
               status: 'error',
-              error_message: `${response.status}: ${errorText}`,
+              error_message: `${response.status}: ${responseText}`,
+              response_status: response.status,
               delivered_at: new Date().toISOString()
             })
         }
@@ -147,7 +190,27 @@ serve(async (req) => {
         errorCount++
         console.error(`Error sending to webhook ${webhook.server_name}:`, error)
         
-        // Log error
+        // Update webhook error stats
+        await supabase
+          .from('webhooks')
+          .update({ 
+            total_errors: (webhook.total_errors || 0) + 1,
+            last_error: error.message,
+            last_sent_at: new Date().toISOString()
+          })
+          .eq('id', webhook.id)
+
+        // Log error to ad_deliveries table
+        await supabase
+          .from('ad_deliveries')
+          .insert({
+            webhook_id: webhook.id,
+            ad_id: randomAd.id,
+            status: 'error',
+            error_message: error.message
+          })
+
+        // Log to webhook_logs for monitoring
         await supabase
           .from('webhook_logs')
           .insert({
@@ -170,7 +233,9 @@ serve(async (req) => {
         success: true,
         message: `Distributed ads to ${successCount} webhooks with ${errorCount} errors`,
         successCount,
-        errorCount
+        errorCount,
+        totalWebhooks: webhooks.length,
+        totalAds: ads.length
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

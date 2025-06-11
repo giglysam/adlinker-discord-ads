@@ -55,6 +55,7 @@ interface WebhookLog {
   ad_id: string;
   created_at: string;
   error_message?: string;
+  response_status?: number;
 }
 
 const AdminDashboard = () => {
@@ -63,9 +64,26 @@ const AdminDashboard = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [webhookLogs, setWebhookLogs] = useState<WebhookLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [automationRunning, setAutomationRunning] = useState(false);
 
   useEffect(() => {
     loadData();
+    
+    // Set up real-time subscription for webhook logs
+    const subscription = supabase
+      .channel('webhook_logs_changes')
+      .on('postgres_changes', 
+        { event: 'INSERT', schema: 'public', table: 'webhook_logs' },
+        () => {
+          console.log('New webhook log detected, refreshing...')
+          loadWebhookLogs()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      subscription.unsubscribe()
+    }
   }, []);
 
   const loadData = async () => {
@@ -74,13 +92,34 @@ const AdminDashboard = () => {
       await Promise.all([
         loadAds(),
         loadUsers(),
-        loadWebhookLogs()
+        loadWebhookLogs(),
+        checkAutomationStatus()
       ]);
     } catch (error) {
       console.error('Error loading data:', error);
       toast.error('Failed to load dashboard data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkAutomationStatus = async () => {
+    try {
+      // Check if there are any active webhooks and public ads
+      const { data: webhookCount } = await supabase
+        .from('webhooks')
+        .select('id', { count: 'exact' })
+        .eq('is_active', true);
+
+      const { data: adCount } = await supabase
+        .from('ads')
+        .select('id', { count: 'exact' })
+        .eq('status', 'public');
+
+      setAutomationRunning(webhookCount && adCount && webhookCount.length > 0 && adCount.length > 0);
+    } catch (error) {
+      console.error('Error checking automation status:', error);
+      setAutomationRunning(false);
     }
   };
 
@@ -154,18 +193,19 @@ const AdminDashboard = () => {
 
   const loadWebhookLogs = async () => {
     const { data, error } = await supabase
-      .from('ad_deliveries')
+      .from('webhook_logs')
       .select(`
         id,
         status,
         error_message,
+        response_status,
         created_at,
         ad_id,
         webhook_id,
         webhooks!inner(webhook_url, server_name)
       `)
       .order('created_at', { ascending: false })
-      .limit(50);
+      .limit(100);
 
     if (error) {
       console.error('Error loading webhook logs:', error);
@@ -180,9 +220,30 @@ const AdminDashboard = () => {
       ad_id: log.ad_id,
       created_at: log.created_at,
       error_message: log.error_message,
+      response_status: log.response_status,
     }));
 
     setWebhookLogs(logs);
+  };
+
+  const triggerManualDistribution = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase.functions.invoke('distribute-ads');
+
+      if (error) {
+        toast.error('Failed to trigger ad distribution');
+        return;
+      }
+
+      toast.success('Ad distribution triggered successfully!');
+      loadData(); // Refresh all data
+    } catch (error) {
+      console.error('Error triggering distribution:', error);
+      toast.error('Failed to trigger ad distribution');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleApproveAd = async (id: string) => {
@@ -273,8 +334,6 @@ const AdminDashboard = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending':
-        return 'bg-yellow-900/30 text-yellow-400 border-yellow-500/50';
       case 'public':
         return 'bg-green-900/30 text-green-400 border-green-500/50';
       case 'stopped':
@@ -288,8 +347,6 @@ const AdminDashboard = () => {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'pending':
-        return <Clock className="w-4 h-4" />;
       case 'public':
       case 'success':
         return <CheckCircle className="w-4 h-4" />;
@@ -299,12 +356,16 @@ const AdminDashboard = () => {
     }
   };
 
-  const pendingAds = ads.filter(ad => ad.status === 'pending').length;
   const publicAds = ads.filter(ad => ad.status === 'public').length;
   const totalUsers = users.length;
   const totalBalance = users.reduce((sum, user) => sum + (user.balance || 0), 0);
   const successfulDeliveries = webhookLogs.filter(log => log.status === 'success').length;
   const errorDeliveries = webhookLogs.filter(log => log.status === 'error').length;
+  const recentDeliveries = webhookLogs.filter(log => {
+    const logTime = new Date(log.created_at);
+    const now = new Date();
+    return now.getTime() - logTime.getTime() < 3600000; // Last hour
+  }).length;
 
   const filteredAds = ads.filter(ad => 
     ad.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -328,30 +389,34 @@ const AdminDashboard = () => {
     <div className="min-h-screen bg-gray-900 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center space-x-4">
-          <div className="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center">
-            <Shield className="w-6 h-6 text-purple-400" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <div className="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center">
+              <Shield className="w-6 h-6 text-purple-400" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
+              <p className="text-gray-400 mt-1">Manage ads, users, and system monitoring</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
-            <p className="text-gray-400 mt-1">Manage ads, users, and system monitoring</p>
+          <div className="flex items-center space-x-4">
+            <Badge className={automationRunning ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}>
+              {automationRunning ? <Activity className="w-3 h-3 mr-1" /> : <AlertTriangle className="w-3 h-3 mr-1" />}
+              Automation {automationRunning ? 'Running' : 'Stopped'}
+            </Badge>
+            <Button
+              onClick={triggerManualDistribution}
+              disabled={loading}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <TrendingUp className="w-4 h-4 mr-2" />
+              Trigger Distribution
+            </Button>
           </div>
         </div>
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-          <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-400 text-xs">Pending Ads</p>
-                  <p className="text-xl font-bold text-yellow-400">{pendingAds}</p>
-                </div>
-                <Clock className="w-5 h-5 text-yellow-400" />
-              </div>
-            </CardContent>
-          </Card>
-
           <Card className="bg-gray-800 border-gray-700">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
@@ -411,6 +476,18 @@ const AdminDashboard = () => {
               </div>
             </CardContent>
           </Card>
+
+          <Card className="bg-gray-800 border-gray-700">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-400 text-xs">Last Hour</p>
+                  <p className="text-xl font-bold text-blue-400">{recentDeliveries}</p>
+                </div>
+                <Activity className="w-5 h-5 text-blue-400" />
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Search Bar */}
@@ -439,7 +516,7 @@ const AdminDashboard = () => {
               Users Management
             </TabsTrigger>
             <TabsTrigger value="webhooks" className="data-[state=active]:bg-gray-700">
-              Webhook Logs
+              Webhook Monitoring
             </TabsTrigger>
           </TabsList>
 
@@ -489,25 +566,6 @@ const AdminDashboard = () => {
                               Created: {new Date(ad.created_at).toLocaleDateString()} | Impressions: {ad.impressions}
                             </div>
                             <div className="flex space-x-2">
-                              {ad.status === 'pending' && (
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleApproveAd(ad.id)}
-                                  className="bg-green-600 hover:bg-green-700"
-                                >
-                                  Approve
-                                </Button>
-                              )}
-                              {ad.status === 'public' && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleStopAd(ad.id)}
-                                  className="border-yellow-600 text-yellow-600 hover:bg-yellow-600"
-                                >
-                                  Stop
-                                </Button>
-                              )}
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -604,7 +662,13 @@ const AdminDashboard = () => {
           <TabsContent value="webhooks" className="space-y-4">
             <Card className="bg-gray-800 border-gray-700">
               <CardHeader>
-                <CardTitle className="text-white">Webhook Delivery Logs</CardTitle>
+                <CardTitle className="text-white flex items-center justify-between">
+                  <span>Real-time Webhook Monitoring</span>
+                  <Badge className="bg-green-900/30 text-green-400">
+                    <Activity className="w-3 h-3 mr-1" />
+                    Live Updates
+                  </Badge>
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 {webhookLogs.length === 0 ? (
@@ -612,7 +676,7 @@ const AdminDashboard = () => {
                     No webhook deliveries yet.
                   </p>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
                     {webhookLogs.map((log) => (
                       <div key={log.id} className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
                         <div className="flex items-center space-x-4">
@@ -626,10 +690,13 @@ const AdminDashboard = () => {
                             {log.error_message && (
                               <p className="text-red-400 text-xs">Error: {log.error_message}</p>
                             )}
+                            {log.response_status && (
+                              <p className="text-gray-500 text-xs">HTTP {log.response_status}</p>
+                            )}
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-gray-400 text-xs">Ad ID: {log.ad_id}</p>
+                          <p className="text-gray-400 text-xs">Ad: {log.ad_id.slice(0, 8)}...</p>
                           <p className="text-gray-500 text-xs">{new Date(log.created_at).toLocaleString()}</p>
                         </div>
                       </div>
@@ -646,3 +713,5 @@ const AdminDashboard = () => {
 };
 
 export default AdminDashboard;
+
+</edits_to_apply>
