@@ -24,11 +24,11 @@ serve(async (req) => {
       )
     }
 
-    // Validate Discord webhook URL format
-    const discordWebhookRegex = /^https:\/\/discord(?:app)?\.com\/api\/webhooks\/\d+\/[\w-]+$/
+    // Validate Discord webhook URL format - more strict validation
+    const discordWebhookRegex = /^https:\/\/discord(?:app)?\.com\/api\/webhooks\/\d{17,19}\/[\w-]{68}$/
     if (!discordWebhookRegex.test(webhookUrl)) {
       return new Response(
-        JSON.stringify({ error: 'Invalid Discord webhook URL format' }),
+        JSON.stringify({ error: 'Invalid Discord webhook URL format. Must be: https://discord.com/api/webhooks/ID/TOKEN' }),
         { 
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -36,32 +36,32 @@ serve(async (req) => {
       )
     }
 
-    // Send test message to Discord
+    // Send test message using the EXACT same format as the distribution function
     const testMessage = {
       embeds: [{
-        title: "🎉 Webhook Test Successful!",
-        description: "Your Discord webhook is working perfectly! You're now ready to start receiving ads and earning money.",
+        title: "🔗 Webhook Connection Test - DiscordAdNet",
+        description: "✅ Your Discord webhook is now connected and working perfectly! This webhook will now receive ads automatically and you'll start earning money.",
         color: 0x00ff00, // Green
         fields: [
           {
-            name: "✅ What's Next?",
-            value: "Your webhook will now automatically receive ads every few minutes. You'll earn money for each ad delivered!",
+            name: "🎯 What happens next?",
+            value: "• Your webhook will receive ads every few minutes\n• You earn $0.00001 for each successful ad delivery\n• Ads will appear in properly formatted Discord embeds\n• Automation starts immediately after this test",
             inline: false
           },
           {
-            name: "💰 Earnings",
-            value: "You earn $0.00001 for each successful ad delivery to your server.",
+            name: "💰 Earnings Info",
+            value: "Each ad delivered = $0.00001 earned automatically",
             inline: false
           }
         ],
         footer: {
-          text: "🚀 DiscordAdNet - Webhook Test Complete"
+          text: "🚀 DiscordAdNet - Webhook Successfully Activated"
         },
         timestamp: new Date().toISOString()
       }]
     }
 
-    console.log('Sending test message to webhook:', webhookUrl.slice(0, 50) + '...')
+    console.log('Testing webhook with strict validation:', webhookUrl.slice(0, 50) + '...')
 
     const response = await fetch(webhookUrl, {
       method: 'POST',
@@ -73,24 +73,26 @@ serve(async (req) => {
     })
 
     const responseText = await response.text()
-    console.log(`Discord response: ${response.status} - ${responseText}`)
+    console.log(`Discord webhook test response: ${response.status} - ${responseText}`)
 
     if (response.ok) {
       return new Response(
         JSON.stringify({ 
           success: true,
-          message: 'Test message sent successfully!'
+          message: 'Webhook test successful! Your webhook is now active and ready to receive ads.',
+          status: response.status
         }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
     } else {
-      console.error('Discord webhook test failed:', response.status, responseText)
+      console.error('Webhook test failed:', response.status, responseText)
       return new Response(
         JSON.stringify({ 
-          error: `Webhook test failed: ${response.status} - ${responseText}`,
-          success: false
+          error: `Webhook test failed: ${response.status} - ${responseText || 'Unknown error'}`,
+          success: false,
+          details: 'Please check your webhook URL and Discord server permissions'
         }),
         { 
           status: 400,
@@ -100,10 +102,10 @@ serve(async (req) => {
     }
 
   } catch (error) {
-    console.error('Test webhook error:', error)
+    console.error('Webhook test error:', error)
     return new Response(
       JSON.stringify({ 
-        error: error.message,
+        error: `Test failed: ${error.message}`,
         success: false
       }),
       { 

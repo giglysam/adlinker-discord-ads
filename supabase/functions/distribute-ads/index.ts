@@ -18,7 +18,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    console.log('Starting automated ad distribution...')
+    console.log('🚀 Starting automated ad distribution...')
 
     // Get all public ads
     const { data: ads, error: adsError } = await supabase
@@ -27,26 +27,27 @@ serve(async (req) => {
       .eq('status', 'public')
 
     if (adsError) {
-      console.error('Error fetching ads:', adsError)
+      console.error('❌ Error fetching ads:', adsError)
       throw adsError
     }
 
-    console.log(`Found ${ads?.length || 0} public ads`)
+    console.log(`📊 Found ${ads?.length || 0} public ads`)
 
-    // Get all active webhooks (only real, verified ones)
+    // Get ONLY ACTIVE webhooks from the database
     const { data: webhooks, error: webhooksError } = await supabase
       .from('webhooks')
       .select('*')
       .eq('is_active', true)
 
     if (webhooksError) {
-      console.error('Error fetching webhooks:', webhooksError)
+      console.error('❌ Error fetching webhooks:', webhooksError)
       throw webhooksError
     }
 
-    console.log(`Found ${webhooks?.length || 0} active webhooks`)
+    console.log(`📊 Found ${webhooks?.length || 0} active webhooks`)
 
     if (!ads || ads.length === 0) {
+      console.log('⚠️ No public ads to distribute')
       return new Response(
         JSON.stringify({ message: 'No public ads to distribute' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -54,6 +55,7 @@ serve(async (req) => {
     }
 
     if (!webhooks || webhooks.length === 0) {
+      console.log('⚠️ No active webhooks found')
       return new Response(
         JSON.stringify({ message: 'No active webhooks to send to' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -63,13 +65,15 @@ serve(async (req) => {
     let successCount = 0
     let errorCount = 0
 
+    console.log(`🎯 Starting distribution to ${webhooks.length} webhooks...`)
+
     // Distribute ads to all active webhooks
     for (const webhook of webhooks) {
       // Select a random ad for variety
       const randomAd = ads[Math.floor(Math.random() * ads.length)]
       
       try {
-        // Create properly formatted Discord embed message
+        // Create Discord embed message using the exact format from your snippet
         const discordMessage = {
           embeds: [{
             title: `🎯 ${randomAd.title}`,
@@ -92,7 +96,7 @@ serve(async (req) => {
           }]
         }
 
-        console.log(`Sending ad "${randomAd.title}" to webhook ${webhook.server_name}`)
+        console.log(`📤 Sending ad "${randomAd.title}" to ${webhook.server_name}`)
 
         // Send to Discord webhook with proper headers
         const response = await fetch(webhook.webhook_url, {
@@ -105,7 +109,7 @@ serve(async (req) => {
         })
 
         const responseText = await response.text()
-        console.log(`Discord API Response: ${response.status} - ${responseText}`)
+        console.log(`📡 Discord API Response for ${webhook.server_name}: ${response.status} - ${responseText}`)
 
         if (response.ok) {
           successCount++
@@ -148,8 +152,8 @@ serve(async (req) => {
               delivered_at: new Date().toISOString()
             })
 
-          // Award earnings to user (important!)
-          const earnedAmount = 0.00001 // $0.00001 per successful ad delivery
+          // Award earnings to user
+          const earnedAmount = 0.00001
           await supabase.rpc('increment_user_balance', {
             user_id: webhook.user_id,
             amount: earnedAmount
@@ -161,7 +165,7 @@ serve(async (req) => {
           errorCount++
           console.error(`❌ Webhook delivery failed for ${webhook.server_name}:`, response.status, responseText)
           
-          // Update webhook error stats but don't deactivate - let user decide
+          // Update webhook error stats
           await supabase
             .from('webhooks')
             .update({ 
@@ -232,7 +236,7 @@ serve(async (req) => {
       await new Promise(resolve => setTimeout(resolve, 500))
     }
 
-    console.log(`🎯 Ad distribution complete. Success: ${successCount}, Errors: ${errorCount}`)
+    console.log(`🎯 Ad distribution complete! ✅ Success: ${successCount}, ❌ Errors: ${errorCount}`)
 
     return new Response(
       JSON.stringify({ 
@@ -241,7 +245,8 @@ serve(async (req) => {
         successCount,
         errorCount,
         totalWebhooks: webhooks.length,
-        totalAds: ads.length
+        totalAds: ads.length,
+        details: `Sent ads to ${successCount}/${webhooks.length} active webhooks`
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -251,7 +256,10 @@ serve(async (req) => {
   } catch (error) {
     console.error('💥 Function error:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        success: false
+      }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
