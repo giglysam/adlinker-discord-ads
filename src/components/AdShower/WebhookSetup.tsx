@@ -34,6 +34,8 @@ const WebhookSetup = () => {
     serverName: '',
   });
 
+  const MAX_WEBHOOKS = 3;
+
   useEffect(() => {
     if (user?.id) {
       loadWebhooks();
@@ -153,8 +155,20 @@ const WebhookSetup = () => {
       return;
     }
 
+    if (webhooks.length >= MAX_WEBHOOKS) {
+      toast.error(`Maximum ${MAX_WEBHOOKS} webhook slots allowed`);
+      return;
+    }
+
     if (!validateDiscordWebhook(newWebhook.url)) {
       toast.error('Please enter a valid Discord webhook URL (format: https://discord.com/api/webhooks/ID/TOKEN)');
+      return;
+    }
+
+    // Check if webhook URL already exists
+    const existingWebhook = webhooks.find(w => w.webhook_url === newWebhook.url);
+    if (existingWebhook) {
+      toast.error('This webhook URL is already added');
       return;
     }
 
@@ -178,7 +192,7 @@ const WebhookSetup = () => {
           user_id: user?.id,
           webhook_url: newWebhook.url,
           server_name: newWebhook.serverName,
-          is_active: true, // Immediately active since test passed
+          is_active: true, // DIRECTLY ACTIVE as requested
         })
         .select()
         .single();
@@ -189,12 +203,12 @@ const WebhookSetup = () => {
         return;
       }
 
-      console.log('Webhook saved successfully:', data);
+      console.log('Webhook saved successfully and is DIRECTLY ACTIVE:', data);
       
       // Update local state
       setWebhooks([data, ...webhooks]);
       setNewWebhook({ url: '', serverName: '' });
-      toast.success('Webhook added and activated successfully!');
+      toast.success('Webhook slot created and activated successfully! Ready to receive ads.');
       
       // Check automation status and trigger first distribution
       setTimeout(async () => {
@@ -212,7 +226,7 @@ const WebhookSetup = () => {
 
   const removeWebhook = async (id: string) => {
     try {
-      console.log('Removing webhook:', id);
+      console.log('Removing webhook slot:', id);
       
       const { error } = await supabase
         .from('webhooks')
@@ -226,7 +240,7 @@ const WebhookSetup = () => {
       }
 
       setWebhooks(webhooks.filter(w => w.id !== id));
-      toast.success('Webhook removed successfully');
+      toast.success('Webhook slot removed successfully');
       checkAutomationStatus();
     } catch (error) {
       console.error('Error removing webhook:', error);
@@ -275,11 +289,13 @@ const WebhookSetup = () => {
     return date.toLocaleDateString();
   };
 
+  const getAvailableSlots = () => MAX_WEBHOOKS - webhooks.length;
+
   if (initialLoading) {
     return (
       <Card className="bg-gray-800 border-gray-700">
         <CardContent className="p-6">
-          <div className="text-white text-center">Loading your webhooks...</div>
+          <div className="text-white text-center">Loading your webhook slots...</div>
         </CardContent>
       </Card>
     );
@@ -291,7 +307,7 @@ const WebhookSetup = () => {
         <CardTitle className="text-white flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Webhook className="w-5 h-5" />
-            <span>Discord Webhook Management</span>
+            <span>Discord Webhook Slots ({webhooks.length}/{MAX_WEBHOOKS})</span>
           </div>
           <div className="flex items-center space-x-2">
             <Badge className={
@@ -307,7 +323,7 @@ const WebhookSetup = () => {
           </div>
         </CardTitle>
         <p className="text-gray-400 text-sm">
-          Add Discord server webhooks to receive ads automatically. Each webhook is tested before activation.
+          Create up to 3 webhook slots for your Discord servers. All webhooks are tested and immediately active.
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -327,10 +343,10 @@ const WebhookSetup = () => {
           </div>
           <div className="text-sm text-gray-300">
             {automationStatus === 'running' && (
-              <p className="text-green-400">✅ System is active - ads are being distributed automatically to your webhooks</p>
+              <p className="text-green-400">✅ System is active - ads are being distributed automatically to your {webhooks.filter(w => w.is_active).length} active webhook slots</p>
             )}
             {automationStatus === 'stopped' && (
-              <p className="text-red-400">⚠️ System is inactive - add working webhooks to start earning</p>
+              <p className="text-red-400">⚠️ System is inactive - add working webhook slots to start earning</p>
             )}
             {automationStatus === 'checking' && (
               <p className="text-yellow-400">🔄 Checking system status...</p>
@@ -338,54 +354,65 @@ const WebhookSetup = () => {
           </div>
         </div>
 
-        {/* Add New Webhook Form */}
-        <div className="space-y-4 p-4 bg-gray-700/50 rounded-lg">
-          <div className="flex items-center space-x-2 mb-2">
-            <Plus className="w-4 h-4 text-blue-400" />
-            <h3 className="text-white font-medium">Add New Discord Webhook</h3>
-          </div>
-          <div className="grid grid-cols-1 gap-4">
-            <div>
-              <Label htmlFor="serverName" className="text-gray-300">Discord Server Name</Label>
-              <Input
-                id="serverName"
-                placeholder="My Awesome Server"
-                value={newWebhook.serverName}
-                onChange={(e) => setNewWebhook({ ...newWebhook, serverName: e.target.value })}
-                className="bg-gray-600 border-gray-500 text-white placeholder-gray-400"
-              />
+        {/* Add New Webhook Form - Only show if slots available */}
+        {getAvailableSlots() > 0 && (
+          <div className="space-y-4 p-4 bg-gray-700/50 rounded-lg">
+            <div className="flex items-center space-x-2 mb-2">
+              <Plus className="w-4 h-4 text-blue-400" />
+              <h3 className="text-white font-medium">Create Webhook Slot ({getAvailableSlots()} remaining)</h3>
             </div>
-            <div>
-              <Label htmlFor="webhookUrl" className="text-gray-300">Discord Webhook URL</Label>
-              <Input
-                id="webhookUrl"
-                placeholder="https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyz..."
-                value={newWebhook.url}
-                onChange={(e) => setNewWebhook({ ...newWebhook, url: e.target.value })}
-                className="bg-gray-600 border-gray-500 text-white placeholder-gray-400"
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                Get this from Discord: Server Settings → Integrations → Webhooks → Copy Webhook URL
-              </p>
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <Label htmlFor="serverName" className="text-gray-300">Discord Server Name</Label>
+                <Input
+                  id="serverName"
+                  placeholder="My Awesome Server"
+                  value={newWebhook.serverName}
+                  onChange={(e) => setNewWebhook({ ...newWebhook, serverName: e.target.value })}
+                  className="bg-gray-600 border-gray-500 text-white placeholder-gray-400"
+                />
+              </div>
+              <div>
+                <Label htmlFor="webhookUrl" className="text-gray-300">Discord Webhook URL</Label>
+                <Input
+                  id="webhookUrl"
+                  placeholder="https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyz..."
+                  value={newWebhook.url}
+                  onChange={(e) => setNewWebhook({ ...newWebhook, url: e.target.value })}
+                  className="bg-gray-600 border-gray-500 text-white placeholder-gray-400"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Get this from Discord: Server Settings → Integrations → Webhooks → Copy Webhook URL
+                </p>
+              </div>
             </div>
+            <Button 
+              onClick={addWebhook}
+              disabled={loading || !newWebhook.url || !newWebhook.serverName}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600"
+            >
+              {loading ? 'Testing & Creating Slot...' : 'Create Webhook Slot'}
+            </Button>
           </div>
-          <Button 
-            onClick={addWebhook}
-            disabled={loading || !newWebhook.url || !newWebhook.serverName}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600"
-          >
-            {loading ? 'Testing & Adding Webhook...' : 'Test & Add Webhook'}
-          </Button>
-        </div>
+        )}
 
-        {/* Active Webhooks List */}
+        {/* Maximum slots reached message */}
+        {getAvailableSlots() === 0 && (
+          <div className="p-4 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
+            <p className="text-yellow-300 text-sm font-medium">
+              🎯 Maximum webhook slots reached ({MAX_WEBHOOKS}/{MAX_WEBHOOKS}). Remove a slot to add a new one.
+            </p>
+          </div>
+        )}
+
+        {/* Active Webhook Slots List */}
         <div className="space-y-3">
-          <h3 className="text-white font-medium">Your Active Webhooks ({webhooks.length})</h3>
+          <h3 className="text-white font-medium">Your Webhook Slots ({webhooks.length}/{MAX_WEBHOOKS})</h3>
           {webhooks.length === 0 ? (
             <div className="text-center py-8 bg-gray-700/30 rounded-lg">
               <Webhook className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-400 text-lg font-medium mb-2">No webhooks configured</p>
-              <p className="text-gray-500 text-sm">Add your first Discord webhook above to start receiving ads and earning money!</p>
+              <p className="text-gray-400 text-lg font-medium mb-2">No webhook slots created</p>
+              <p className="text-gray-500 text-sm">Create your first webhook slot above to start receiving ads and earning money!</p>
             </div>
           ) : (
             webhooks.map((webhook) => (
@@ -433,7 +460,7 @@ const WebhookSetup = () => {
                     variant="outline"
                     onClick={() => removeWebhook(webhook.id)}
                     className="border-red-600 text-red-600 hover:bg-red-600 hover:text-white"
-                    title="Remove webhook"
+                    title="Remove webhook slot"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -445,18 +472,18 @@ const WebhookSetup = () => {
 
         {/* Instructions */}
         <div className="p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
-          <h4 className="text-blue-300 font-medium mb-2">📋 How to get your Discord webhook URL:</h4>
+          <h4 className="text-blue-300 font-medium mb-2">📋 How to create a webhook slot:</h4>
           <ol className="text-blue-200 text-sm space-y-1 list-decimal list-inside">
             <li>Open your Discord server settings</li>
             <li>Go to "Integrations" → "Webhooks"</li>
             <li>Click "New Webhook" or edit existing one</li>
             <li>Choose the channel where ads will appear</li>
             <li>Copy the webhook URL and paste it above</li>
-            <li>Click "Test & Add Webhook" to activate</li>
+            <li>Click "Create Webhook Slot" to activate immediately</li>
           </ol>
           <div className="mt-3 p-2 bg-green-900/20 border border-green-500/30 rounded">
             <p className="text-green-300 text-sm font-medium">
-              ⚡ Your webhook will be tested immediately and activated only if it works perfectly!
+              ⚡ Your webhook slot will be tested and activated immediately! Failed webhooks are automatically removed during automation.
             </p>
           </div>
         </div>
