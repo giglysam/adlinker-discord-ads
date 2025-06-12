@@ -11,31 +11,31 @@ export type Database = {
     Tables: {
       ad_deliveries: {
         Row: {
-          ad_id: string
-          created_at: string
+          ad_id: string | null
+          created_at: string | null
           earning_amount: number | null
           error_message: string | null
           id: string
           status: string
-          webhook_id: string
+          webhook_id: string | null
         }
         Insert: {
-          ad_id: string
-          created_at?: string
+          ad_id?: string | null
+          created_at?: string | null
           earning_amount?: number | null
           error_message?: string | null
           id?: string
           status: string
-          webhook_id: string
+          webhook_id?: string | null
         }
         Update: {
-          ad_id?: string
-          created_at?: string
+          ad_id?: string | null
+          created_at?: string | null
           earning_amount?: number | null
           error_message?: string | null
           id?: string
           status?: string
-          webhook_id?: string
+          webhook_id?: string | null
         }
         Relationships: [
           {
@@ -57,6 +57,8 @@ export type Database = {
       ads: {
         Row: {
           created_at: string
+          duration_hours: number | null
+          expires_at: string | null
           id: string
           image_url: string | null
           impressions: number | null
@@ -69,6 +71,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          duration_hours?: number | null
+          expires_at?: string | null
           id?: string
           image_url?: string | null
           impressions?: number | null
@@ -81,6 +85,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          duration_hours?: number | null
+          expires_at?: string | null
           id?: string
           image_url?: string | null
           impressions?: number | null
@@ -222,14 +228,13 @@ export type Database = {
       }
       webhooks: {
         Row: {
-          ads_sent: number | null
           created_at: string
           id: string
-          is_active: boolean | null
+          is_active: boolean
           last_error: string | null
           last_sent_at: string | null
           last_success_at: string | null
-          server_name: string | null
+          server_name: string
           total_errors: number | null
           total_sent: number | null
           updated_at: string
@@ -237,14 +242,13 @@ export type Database = {
           webhook_url: string
         }
         Insert: {
-          ads_sent?: number | null
           created_at?: string
           id?: string
-          is_active?: boolean | null
+          is_active?: boolean
           last_error?: string | null
           last_sent_at?: string | null
           last_success_at?: string | null
-          server_name?: string | null
+          server_name: string
           total_errors?: number | null
           total_sent?: number | null
           updated_at?: string
@@ -252,29 +256,20 @@ export type Database = {
           webhook_url: string
         }
         Update: {
-          ads_sent?: number | null
           created_at?: string
           id?: string
-          is_active?: boolean | null
+          is_active?: boolean
           last_error?: string | null
           last_sent_at?: string | null
           last_success_at?: string | null
-          server_name?: string | null
+          server_name?: string
           total_errors?: number | null
           total_sent?: number | null
           updated_at?: string
           user_id?: string
           webhook_url?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "webhooks_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Views: {
