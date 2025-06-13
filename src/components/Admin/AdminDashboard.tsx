@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -355,17 +356,6 @@ const AdminDashboard = () => {
         return <XCircle className="w-4 h-4" />;
     }
   };
-
-  const publicAds = ads.filter(ad => ad.status === 'public').length;
-  const totalUsers = users.length;
-  const totalBalance = users.reduce((sum, user) => sum + (user.balance || 0), 0);
-  const successfulDeliveries = webhookLogs.filter(log => log.status === 'success').length;
-  const errorDeliveries = webhookLogs.filter(log => log.status === 'error').length;
-  const recentDeliveries = webhookLogs.filter(log => {
-    const logTime = new Date(log.created_at);
-    const now = new Date();
-    return now.getTime() - logTime.getTime() < 3600000; // Last hour
-  }).length;
 
   const filteredAds = ads.filter(ad => 
     ad.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
