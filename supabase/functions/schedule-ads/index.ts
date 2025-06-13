@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -18,52 +17,40 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    console.log('Starting automated ad scheduler...')
+    console.log('🔄 Starting automatic ad scheduling system...')
 
-    // Check if there are any active webhooks and public ads
-    const { data: webhooks } = await supabase
-      .from('webhooks')
-      .select('id')
-      .eq('is_active', true)
-      .limit(1)
-
-    const { data: ads } = await supabase
-      .from('ads')
-      .select('id')
-      .eq('status', 'public')
-      .limit(1)
-
-    if (!webhooks || webhooks.length === 0) {
-      console.log('No active webhooks found, skipping distribution')
-      return new Response(
-        JSON.stringify({ message: 'No active webhooks found' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    // Function to trigger distribution
+    const triggerDistribution = async () => {
+      try {
+        console.log('⏰ Triggering scheduled ad distribution...')
+        await supabase.functions.invoke('distribute-ads')
+        console.log('✅ Distribution triggered successfully')
+      } catch (error) {
+        console.error('❌ Error triggering distribution:', error)
+      }
     }
 
-    if (!ads || ads.length === 0) {
-      console.log('No public ads found, skipping distribution')
-      return new Response(
-        JSON.stringify({ message: 'No public ads found' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+    // Initial distribution
+    await triggerDistribution()
 
-    // Call the distribute-ads function
-    const { data, error } = await supabase.functions.invoke('distribute-ads')
+    // Set up continuous distribution every 30 minutes
+    const intervalId = setInterval(triggerDistribution, 30 * 60 * 1000) // 30 minutes
 
-    if (error) {
-      console.error('Error calling distribute-ads:', error)
-      throw error
-    }
-
-    console.log('Ad distribution triggered successfully:', data)
+    // Keep the function running
+    await new Promise((resolve) => {
+      // This will keep the function alive
+      setTimeout(() => {
+        clearInterval(intervalId)
+        resolve(undefined)
+      }, 24 * 60 * 60 * 1000) // Run for 24 hours, then restart
+    })
 
     return new Response(
       JSON.stringify({ 
         success: true,
-        message: 'Ad distribution triggered successfully',
-        result: data
+        message: 'Ad scheduling system started successfully',
+        interval: '30 minutes',
+        duration: '24 hours'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -71,9 +58,12 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Scheduler error:', error)
+    console.error('💥 Scheduler error:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        success: false
+      }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

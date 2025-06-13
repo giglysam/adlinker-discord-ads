@@ -220,12 +220,12 @@ const WebhookSetup = () => {
       // Update local state
       setWebhooks([data, ...webhooks]);
       setNewWebhook({ url: '', serverName: '' });
-      toast.success(`Webhook slot "${newWebhook.serverName}" created and activated successfully! Ready to receive ads.`);
+      toast.success(`Webhook slot "${newWebhook.serverName}" created and activated successfully! Automatic ad distribution starting...`);
       
-      // Check automation status and trigger first distribution
+      // Check automation status and start automatic distribution
       setTimeout(async () => {
         await checkAutomationStatus();
-        await triggerManualDistribution();
+        await startAutomaticDistribution();
       }, 1000);
 
     } catch (error) {
@@ -233,6 +233,26 @@ const WebhookSetup = () => {
       toast.error('Failed to add webhook slot: ' + error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const startAutomaticDistribution = async () => {
+    try {
+      console.log('Starting automatic ad distribution system...');
+      
+      const { data, error } = await supabase.functions.invoke('schedule-ads');
+
+      if (error) {
+        console.error('Failed to start automatic distribution:', error);
+        toast.error('Failed to start automatic distribution: ' + error.message);
+        return;
+      }
+
+      console.log('Automatic distribution started:', data);
+      toast.success('Automatic ad distribution system started! Ads will be sent continuously every 30 minutes.');
+    } catch (error) {
+      console.error('Error starting automatic distribution:', error);
+      toast.error('Failed to start automatic distribution: ' + error.message);
     }
   };
 
@@ -279,7 +299,7 @@ const WebhookSetup = () => {
       }
 
       console.log('Distribution triggered successfully:', data);
-      toast.success('Ad distribution triggered successfully!');
+      toast.success('Ad distribution triggered successfully! Check your Discord servers.');
       loadWebhooks(); // Refresh to see updated stats
     } catch (error) {
       console.error('Error triggering distribution:', error);
@@ -336,7 +356,7 @@ const WebhookSetup = () => {
           </div>
         </CardTitle>
         <p className="text-gray-400 text-sm">
-          Create up to 3 webhook slots for your Discord servers. All webhooks are tested and immediately active.
+          Create up to 3 webhook slots for your Discord servers. Automatic distribution runs every 30 minutes.
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -344,19 +364,30 @@ const WebhookSetup = () => {
         <div className="p-4 bg-gray-700/50 rounded-lg">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-white font-medium">System Status</h3>
-            <Button
-              size="sm"
-              onClick={triggerManualDistribution}
-              disabled={loading || automationStatus === 'stopped'}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              <TrendingUp className="w-4 h-4 mr-2" />
-              Send Ads Now
-            </Button>
+            <div className="flex space-x-2">
+              <Button
+                size="sm"
+                onClick={triggerManualDistribution}
+                disabled={loading || automationStatus === 'stopped'}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <TrendingUp className="w-4 h-4 mr-2" />
+                Send Ads Now
+              </Button>
+              <Button
+                size="sm"
+                onClick={startAutomaticDistribution}
+                disabled={loading || automationStatus === 'stopped'}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <Activity className="w-4 h-4 mr-2" />
+                Start Auto System
+              </Button>
+            </div>
           </div>
           <div className="text-sm text-gray-300">
             {automationStatus === 'running' && (
-              <p className="text-green-400">✅ System is active - ads are being distributed automatically to your {webhooks.filter(w => w.is_active).length} active webhook slots</p>
+              <p className="text-green-400">✅ System is active - ads are being distributed automatically every 30 minutes to your {webhooks.filter(w => w.is_active).length} active webhook slots</p>
             )}
             {automationStatus === 'stopped' && (
               <p className="text-red-400">⚠️ System is inactive - add working webhook slots to start earning</p>
@@ -496,7 +527,7 @@ const WebhookSetup = () => {
           </ol>
           <div className="mt-3 p-2 bg-green-900/20 border border-green-500/30 rounded">
             <p className="text-green-300 text-sm font-medium">
-              ⚡ Your webhook slots are saved to your profile and will persist across sessions! Failed webhooks are only deleted after repeated failures.
+              ⚡ Your webhook slots are saved and will automatically receive ads every 30 minutes! The system runs continuously.
             </p>
           </div>
         </div>

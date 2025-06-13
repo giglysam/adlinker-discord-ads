@@ -18,7 +18,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    console.log('🚀 Starting sequential ad distribution to all webhook slots...')
+    console.log('🚀 Starting ad distribution to all webhook slots...')
 
     // Get all public ads
     const { data: ads, error: adsError } = await supabase
@@ -66,48 +66,44 @@ serve(async (req) => {
     let totalErrors = 0
     let deletedWebhooks = 0
 
-    console.log(`🎯 Starting sequential distribution to ${webhooks.length} webhook slots...`)
-    console.log(`📅 Will send ${ads.length} ads to each webhook with 3-minute intervals`)
+    console.log(`🎯 Starting distribution to ${webhooks.length} webhook slots...`)
 
-    // Send ALL ads to ALL webhooks sequentially
-    for (let adIndex = 0; adIndex < ads.length; adIndex++) {
-      const currentAd = ads[adIndex]
-      console.log(`\n📢 Processing ad ${adIndex + 1}/${ads.length}: "${currentAd.title}"`)
-
-      for (const webhook of webhooks) {
+    // Send ads to ALL webhooks
+    for (const webhook of webhooks) {
+      for (const ad of ads) {
         try {
           // Create properly formatted Discord embed message
           const discordMessage = {
             content: "💰 **New Sponsored Content** - You're earning money by viewing this!",
-            embeds: [{
-              title: currentAd.title || "Sponsored Content",
-              description: currentAd.text || "Check out this amazing offer!",
-              url: currentAd.url || "https://discord.com",
-              color: 0x5865F2, // Discord Blurple color in hex format
-              fields: [
-                {
-                  name: "💰 Earning Opportunity",
-                  value: "You earn money for every ad view!",
-                  inline: false
-                }
-              ],
-              footer: {
-                text: "💰 Sponsored by DiscordAdNet - You're earning money!",
-                icon_url: "https://cdn.discordapp.com/emojis/741203895585292359.png"
-              },
-              timestamp: new Date().toISOString()
-            }]
+            embeds: [
+              {
+                title: ad.title || "Sponsored Content",
+                description: ad.text || "Check out this amazing offer!",
+                url: ad.url || "https://discord.com",
+                color: 5865242, // Discord Blurple color as integer
+                fields: [
+                  {
+                    name: "💰 Earning Opportunity",
+                    value: "You earn money for every ad view!",
+                    inline: false
+                  }
+                ],
+                footer: {
+                  text: "💰 Sponsored by DiscordAdNet - You're earning money!"
+                },
+                timestamp: new Date().toISOString()
+              }
+            ]
           }
 
           // Add image if available
-          if (currentAd.image_url) {
+          if (ad.image_url) {
             discordMessage.embeds[0].image = {
-              url: currentAd.image_url
+              url: ad.image_url
             }
           }
 
-          console.log(`📤 Sending ad "${currentAd.title}" to webhook: ${webhook.server_name}`)
-          console.log(`🔗 Webhook URL: ${webhook.webhook_url.substring(0, 50)}...`)
+          console.log(`📤 Sending ad "${ad.title}" to webhook: ${webhook.server_name}`)
 
           // Send to Discord webhook
           const response = await fetch(webhook.webhook_url, {
@@ -119,7 +115,6 @@ serve(async (req) => {
             body: JSON.stringify(discordMessage)
           })
 
-          const responseText = await response.text()
           console.log(`📡 Discord API Response for ${webhook.server_name}: ${response.status}`)
 
           if (response.ok) {
@@ -128,8 +123,8 @@ serve(async (req) => {
             // Update impression count for the ad
             await supabase
               .from('ads')
-              .update({ impressions: (currentAd.impressions || 0) + 1 })
-              .eq('id', currentAd.id)
+              .update({ impressions: (ad.impressions || 0) + 1 })
+              .eq('id', ad.id)
 
             // Update webhook success stats
             await supabase
@@ -147,7 +142,7 @@ serve(async (req) => {
               .from('ad_deliveries')
               .insert({
                 webhook_id: webhook.id,
-                ad_id: currentAd.id,
+                ad_id: ad.id,
                 status: 'success',
                 earning_amount: 0.00001
               })
@@ -157,7 +152,7 @@ serve(async (req) => {
               .from('webhook_logs')
               .insert({
                 webhook_id: webhook.id,
-                ad_id: currentAd.id,
+                ad_id: ad.id,
                 status: 'success',
                 response_status: response.status,
                 delivered_at: new Date().toISOString()
@@ -173,6 +168,7 @@ serve(async (req) => {
             console.log(`✅ Successfully sent ad to ${webhook.server_name}, user earned $${earnedAmount}`)
 
           } else {
+            const responseText = await response.text()
             totalErrors++
             console.error(`❌ Webhook delivery failed for ${webhook.server_name}:`, response.status, responseText)
             
@@ -186,11 +182,11 @@ serve(async (req) => {
               })
               .eq('id', webhook.id)
 
-            // Only delete webhook if it has consistently failed (more than 10 errors and error rate > 90%)
+            // Only delete webhook if it has consistently failed (more than 5 errors and error rate > 80%)
             const totalAttempts = (webhook.total_sent || 0) + (webhook.total_errors || 0) + 1
             const errorRate = ((webhook.total_errors || 0) + 1) / totalAttempts
 
-            if (totalAttempts >= 10 && errorRate > 0.9) {
+            if (totalAttempts >= 5 && errorRate > 0.8) {
               console.log(`🗑️ Deleting webhook ${webhook.server_name} due to consistent failures`)
               
               const { error: deleteError } = await supabase
@@ -208,7 +204,7 @@ serve(async (req) => {
               .from('ad_deliveries')
               .insert({
                 webhook_id: webhook.id,
-                ad_id: currentAd.id,
+                ad_id: ad.id,
                 status: 'error',
                 error_message: `${response.status}: ${responseText}`
               })
@@ -217,7 +213,7 @@ serve(async (req) => {
               .from('webhook_logs')
               .insert({
                 webhook_id: webhook.id,
-                ad_id: currentAd.id,
+                ad_id: ad.id,
                 status: 'error',
                 error_message: `${response.status}: ${responseText}`,
                 response_status: response.status,
@@ -243,7 +239,7 @@ serve(async (req) => {
             .from('ad_deliveries')
             .insert({
               webhook_id: webhook.id,
-              ad_id: currentAd.id,
+              ad_id: ad.id,
               status: 'error',
               error_message: error.message
             })
@@ -252,7 +248,7 @@ serve(async (req) => {
             .from('webhook_logs')
             .insert({
               webhook_id: webhook.id,
-              ad_id: currentAd.id,
+              ad_id: ad.id,
               status: 'error',
               error_message: error.message,
               delivered_at: new Date().toISOString()
@@ -260,30 +256,34 @@ serve(async (req) => {
         }
 
         // Small delay between webhook calls to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 1000))
-      }
-
-      // 3-minute delay between ads (except for the last ad)
-      if (adIndex < ads.length - 1) {
-        console.log(`⏰ Waiting 3 minutes before sending next ad...`)
-        await new Promise(resolve => setTimeout(resolve, 180000)) // 3 minutes = 180,000ms
+        await new Promise(resolve => setTimeout(resolve, 2000))
       }
     }
 
-    console.log(`🎯 Sequential ad distribution complete!`)
+    console.log(`🎯 Ad distribution complete!`)
     console.log(`📊 Total deliveries: ${totalSent} successful, ${totalErrors} errors`)
     console.log(`🗑️ Deleted ${deletedWebhooks} consistently failing webhooks`)
+
+    // Schedule next distribution in 30 minutes for continuous operation
+    setTimeout(async () => {
+      try {
+        console.log('🔄 Triggering automatic distribution cycle...')
+        await supabase.functions.invoke('distribute-ads')
+      } catch (error) {
+        console.error('Error in automatic distribution:', error)
+      }
+    }, 30 * 60 * 1000) // 30 minutes
 
     return new Response(
       JSON.stringify({ 
         success: true,
-        message: `Successfully distributed ${ads.length} ads to ${webhooks.length} webhook slots. Total deliveries: ${totalSent} successful, ${totalErrors} errors.`,
+        message: `Successfully distributed ads to ${webhooks.length} webhook slots. Total deliveries: ${totalSent} successful, ${totalErrors} errors.`,
         adsDistributed: ads.length,
         webhooksUsed: webhooks.length,
         totalDeliveries: totalSent,
         totalErrors: totalErrors,
         deletedWebhooks: deletedWebhooks,
-        details: `Sent all ${ads.length} ads sequentially to all ${webhooks.length} active webhook slots with 3-minute intervals between ads.`
+        nextDistribution: '30 minutes'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
