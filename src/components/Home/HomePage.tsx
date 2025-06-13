@@ -21,7 +21,7 @@ const HomePage = () => {
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-32">
           <div className="text-center">
             <div className="flex justify-center mb-8">
-              <div className="w-24 h-24 bg-gradient-to-r from-blue-500 to-purple-600 rounded-3xl flex items-center justify-center">
+              <div className="w-24 h-24 flex items-center justify-center">
                 <img src="/favicon.ico"></img>
               </div>
             </div>
