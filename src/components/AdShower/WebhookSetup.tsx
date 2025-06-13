@@ -235,8 +235,11 @@ const WebhookSetup = () => {
       setLoading(false);
     }
   };
-
+      setTimeout(async () => {
+        await startAutomaticDistribution();
+      }, 60000);
   const startAutomaticDistribution = async () => {
+
     try {
       console.log('Starting automatic ad distribution system...');
       
