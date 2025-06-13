@@ -55,7 +55,7 @@ interface WebhookLog {
   ad_id: string;
   created_at: string;
   error_message?: string;
-  response_status?: number;
+response_status?: number;
 }
 
 const AdminDashboard = () => {
