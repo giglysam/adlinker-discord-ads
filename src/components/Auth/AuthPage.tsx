@@ -106,7 +106,7 @@ const AuthPage = () => {
     <Card className="w-full max-w-md bg-gray-800/90 backdrop-blur-sm border-gray-700">
       <CardHeader className="text-center pb-2">
         <div className="flex justify-center mb-4">
-          <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center">
+          <div className="items-center justify-center">
             <img src="/favicon.ico"></img>
           </div>
         </div>
