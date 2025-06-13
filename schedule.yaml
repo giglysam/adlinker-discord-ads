@@ -1,0 +1,3 @@
+version: v1
+cron: "*/3 * * * *"
+function: distribute-ads
