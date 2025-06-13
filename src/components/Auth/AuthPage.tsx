@@ -221,7 +221,6 @@ const AuthPage = () => {
             <div className="mt-4 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
               <p className="text-sm text-blue-300 mb-2">Demo Admin Login:</p>
               <p className="text-sm text-gray-300">Email: admin@discordadnet.com</p>
-              <p className="text-sm text-gray-300">Password: Gabriels120?</p>
             </div>
           </TabsContent>
         </Tabs>
