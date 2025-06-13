@@ -74,17 +74,19 @@ serve(async (req) => {
       const randomAd = ads[Math.floor(Math.random() * ads.length)]
       
       try {
-        // Create Discord embed message using the format you provided
+        // Create Discord embed message with PROPER format that Discord accepts
         const discordMessage = {
           content: "💰 New sponsored content - You're earning money by viewing this!",
           embeds: [{
-            title: randomAd.title,
-            url: randomAd.url,
-            description: randomAd.text,
-            color: 0x5865F2, // Discord Blurple
-            image: randomAd.image_url ? {
-              url: randomAd.image_url
-            } : undefined,
+            title: randomAd.title || "Sponsored Content",
+            url: randomAd.url || "https://discord.com",
+            description: randomAd.text || "Check out this amazing offer!",
+            color: 5814783, // Discord Blurple as integer, not hex
+            ...(randomAd.image_url && {
+              image: {
+                url: randomAd.image_url
+              }
+            }),
             footer: {
               text: "💰 Sponsored by DiscordAdNet - You're earning money!"
             },
@@ -94,7 +96,7 @@ serve(async (req) => {
 
         console.log(`📤 Sending ad "${randomAd.title}" to webhook slot ${webhook.server_name}`)
 
-        // Send to Discord webhook using exact format like your Python example
+        // Send to Discord webhook
         const response = await fetch(webhook.webhook_url, {
           method: 'POST',
           headers: {
@@ -161,29 +163,44 @@ serve(async (req) => {
           errorCount++
           console.error(`❌ Webhook delivery failed for ${webhook.server_name}:`, response.status, responseText)
           
-          // AUTOMATICALLY DELETE FAILED WEBHOOKS as requested
-          console.log(`🗑️ Deleting failed webhook slot ${webhook.server_name} as it doesn't work`)
-          
-          const { error: deleteError } = await supabase
+          // Update webhook error stats but DON'T delete immediately - give it a chance
+          await supabase
             .from('webhooks')
-            .delete()
+            .update({ 
+              total_errors: (webhook.total_errors || 0) + 1,
+              last_sent_at: new Date().toISOString(),
+              last_error: `${response.status}: ${responseText}`
+            })
             .eq('id', webhook.id)
 
-          if (deleteError) {
-            console.error(`Failed to delete webhook ${webhook.server_name}:`, deleteError)
-          } else {
-            deletedWebhooks++
-            console.log(`✅ Successfully deleted failed webhook slot ${webhook.server_name}`)
+          // Only delete if error rate is too high (more than 80% errors)
+          const totalAttempts = (webhook.total_sent || 0) + (webhook.total_errors || 0) + 1
+          const errorRate = ((webhook.total_errors || 0) + 1) / totalAttempts
+
+          if (totalAttempts >= 5 && errorRate > 0.8) {
+            console.log(`🗑️ Deleting webhook slot ${webhook.server_name} due to high error rate (${(errorRate * 100).toFixed(1)}%)`)
+            
+            const { error: deleteError } = await supabase
+              .from('webhooks')
+              .delete()
+              .eq('id', webhook.id)
+
+            if (deleteError) {
+              console.error(`Failed to delete webhook ${webhook.server_name}:`, deleteError)
+            } else {
+              deletedWebhooks++
+              console.log(`✅ Successfully deleted failed webhook slot ${webhook.server_name}`)
+            }
           }
 
-          // Log failed delivery before deletion
+          // Log failed delivery
           await supabase
             .from('ad_deliveries')
             .insert({
               webhook_id: webhook.id,
               ad_id: randomAd.id,
               status: 'error',
-              error_message: `${response.status}: ${responseText} - Webhook deleted`
+              error_message: `${response.status}: ${responseText}`
             })
 
           // Log to webhook_logs for monitoring
@@ -193,7 +210,7 @@ serve(async (req) => {
               webhook_id: webhook.id,
               ad_id: randomAd.id,
               status: 'error',
-              error_message: `${response.status}: ${responseText} - Webhook deleted`,
+              error_message: `${response.status}: ${responseText}`,
               response_status: response.status,
               delivered_at: new Date().toISOString()
             })
@@ -202,20 +219,15 @@ serve(async (req) => {
         errorCount++
         console.error(`💥 Error sending to webhook slot ${webhook.server_name}:`, error)
         
-        // AUTOMATICALLY DELETE FAILED WEBHOOKS as requested
-        console.log(`🗑️ Deleting failed webhook slot ${webhook.server_name} due to connection error`)
-        
-        const { error: deleteError } = await supabase
+        // Update error stats
+        await supabase
           .from('webhooks')
-          .delete()
+          .update({ 
+            total_errors: (webhook.total_errors || 0) + 1,
+            last_sent_at: new Date().toISOString(),
+            last_error: error.message
+          })
           .eq('id', webhook.id)
-
-        if (deleteError) {
-          console.error(`Failed to delete webhook ${webhook.server_name}:`, deleteError)
-        } else {
-          deletedWebhooks++
-          console.log(`✅ Successfully deleted failed webhook slot ${webhook.server_name}`)
-        }
 
         // Log error to deliveries and logs
         await supabase
@@ -224,7 +236,7 @@ serve(async (req) => {
             webhook_id: webhook.id,
             ad_id: randomAd.id,
             status: 'error',
-            error_message: error.message + ' - Webhook deleted'
+            error_message: error.message
           })
 
         await supabase
@@ -233,7 +245,7 @@ serve(async (req) => {
             webhook_id: webhook.id,
             ad_id: randomAd.id,
             status: 'error',
-            error_message: error.message + ' - Webhook deleted',
+            error_message: error.message,
             delivered_at: new Date().toISOString()
           })
       }
@@ -253,7 +265,7 @@ serve(async (req) => {
         deletedWebhooks,
         totalWebhooks: webhooks.length,
         totalAds: ads.length,
-        details: `Sent ads to ${successCount}/${webhooks.length} active webhook slots. Automatically deleted ${deletedWebhooks} failed webhooks.`
+        details: `Sent ads to ${successCount}/${webhooks.length} active webhook slots. Deleted ${deletedWebhooks} failed webhooks only after high error rate.`
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

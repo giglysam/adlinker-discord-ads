@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,6 +20,7 @@ interface WebhookData {
   last_success_at: string;
   last_sent_at: string;
   last_error: string;
+  user_id: string;
 }
 
 const WebhookSetup = () => {
@@ -38,6 +38,7 @@ const WebhookSetup = () => {
 
   useEffect(() => {
     if (user?.id) {
+      console.log('Loading webhooks for user:', user.id);
       loadWebhooks();
       checkAutomationStatus();
       
@@ -99,15 +100,15 @@ const WebhookSetup = () => {
 
       if (error) {
         console.error('Error loading webhooks:', error);
-        toast.error('Failed to load webhooks: ' + error.message);
+        toast.error('Failed to load webhook slots: ' + error.message);
         return;
       }
 
-      console.log('Loaded webhooks:', data);
+      console.log('Successfully loaded webhooks:', data);
       setWebhooks(data || []);
     } catch (error) {
       console.error('Error loading webhooks:', error);
-      toast.error('Failed to load webhooks');
+      toast.error('Failed to load webhook slots');
     } finally {
       setInitialLoading(false);
     }
@@ -155,6 +156,11 @@ const WebhookSetup = () => {
       return;
     }
 
+    if (!user?.id) {
+      toast.error('User not authenticated');
+      return;
+    }
+
     if (webhooks.length >= MAX_WEBHOOKS) {
       toast.error(`Maximum ${MAX_WEBHOOKS} webhook slots allowed`);
       return;
@@ -165,16 +171,16 @@ const WebhookSetup = () => {
       return;
     }
 
-    // Check if webhook URL already exists
+    // Check if webhook URL already exists for this user
     const existingWebhook = webhooks.find(w => w.webhook_url === newWebhook.url);
     if (existingWebhook) {
-      toast.error('This webhook URL is already added');
+      toast.error('This webhook URL is already added to your slots');
       return;
     }
 
     setLoading(true);
     try {
-      console.log('Adding webhook:', newWebhook.serverName, newWebhook.url.slice(0, 50) + '...');
+      console.log('Adding webhook for user:', user.id, 'Server:', newWebhook.serverName);
       
       // Test the webhook using the API before adding it
       toast.info('Testing webhook connection...');
@@ -185,30 +191,36 @@ const WebhookSetup = () => {
         return;
       }
 
-      // Add webhook to database - immediately active since test passed
+      // Add webhook to database with user ID
+      const webhookData = {
+        user_id: user.id,
+        webhook_url: newWebhook.url,
+        server_name: newWebhook.serverName,
+        is_active: true,
+        total_sent: 0,
+        total_errors: 0
+      };
+
+      console.log('Inserting webhook data:', webhookData);
+
       const { data, error } = await supabase
         .from('webhooks')
-        .insert({
-          user_id: user?.id,
-          webhook_url: newWebhook.url,
-          server_name: newWebhook.serverName,
-          is_active: true, // DIRECTLY ACTIVE as requested
-        })
+        .insert(webhookData)
         .select()
         .single();
 
       if (error) {
-        console.error('Error adding webhook to database:', error);
-        toast.error('Failed to save webhook: ' + error.message);
+        console.error('Error saving webhook to database:', error);
+        toast.error('Failed to save webhook slot: ' + error.message);
         return;
       }
 
-      console.log('Webhook saved successfully and is DIRECTLY ACTIVE:', data);
+      console.log('Webhook slot saved successfully:', data);
       
       // Update local state
       setWebhooks([data, ...webhooks]);
       setNewWebhook({ url: '', serverName: '' });
-      toast.success('Webhook slot created and activated successfully! Ready to receive ads.');
+      toast.success(`Webhook slot "${newWebhook.serverName}" created and activated successfully! Ready to receive ads.`);
       
       // Check automation status and trigger first distribution
       setTimeout(async () => {
@@ -217,34 +229,35 @@ const WebhookSetup = () => {
       }, 1000);
 
     } catch (error) {
-      console.error('Error adding webhook:', error);
-      toast.error('Failed to add webhook: ' + error.message);
+      console.error('Error adding webhook slot:', error);
+      toast.error('Failed to add webhook slot: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const removeWebhook = async (id: string) => {
+  const removeWebhook = async (id: string, serverName: string) => {
     try {
-      console.log('Removing webhook slot:', id);
+      console.log('Removing webhook slot:', id, serverName);
       
       const { error } = await supabase
         .from('webhooks')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('user_id', user?.id); // Extra security check
 
       if (error) {
         console.error('Error removing webhook:', error);
-        toast.error('Failed to remove webhook: ' + error.message);
+        toast.error('Failed to remove webhook slot: ' + error.message);
         return;
       }
 
       setWebhooks(webhooks.filter(w => w.id !== id));
-      toast.success('Webhook slot removed successfully');
+      toast.success(`Webhook slot "${serverName}" removed successfully`);
       checkAutomationStatus();
     } catch (error) {
-      console.error('Error removing webhook:', error);
-      toast.error('Failed to remove webhook: ' + error.message);
+      console.error('Error removing webhook slot:', error);
+      toast.error('Failed to remove webhook slot: ' + error.message);
     }
   };
 
@@ -458,7 +471,7 @@ const WebhookSetup = () => {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => removeWebhook(webhook.id)}
+                    onClick={() => removeWebhook(webhook.id, webhook.server_name)}
                     className="border-red-600 text-red-600 hover:bg-red-600 hover:text-white"
                     title="Remove webhook slot"
                   >
@@ -479,11 +492,11 @@ const WebhookSetup = () => {
             <li>Click "New Webhook" or edit existing one</li>
             <li>Choose the channel where ads will appear</li>
             <li>Copy the webhook URL and paste it above</li>
-            <li>Click "Create Webhook Slot" to activate immediately</li>
+            <li>Click "Create Webhook Slot" to test and activate immediately</li>
           </ol>
           <div className="mt-3 p-2 bg-green-900/20 border border-green-500/30 rounded">
             <p className="text-green-300 text-sm font-medium">
-              ⚡ Your webhook slot will be tested and activated immediately! Failed webhooks are automatically removed during automation.
+              ⚡ Your webhook slots are saved to your profile and will persist across sessions! Failed webhooks are only deleted after repeated failures.
             </p>
           </div>
         </div>
