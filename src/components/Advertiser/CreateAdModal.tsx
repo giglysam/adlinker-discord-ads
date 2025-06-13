@@ -18,13 +18,13 @@ const CreateAdModal: React.FC<CreateAdModalProps> = ({ isOpen, onClose, onSubmit
     title: '',
     url: '',
     text: '',
-    mediaUrl: '', // new field for image or video URL
+    imageUrl: '', // new field for image or video URL
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.title || !formData.url || !formData.text || !formData.mediaUrl) {
+    if (!formData.title || !formData.url || !formData.text || !formData.imageUrl) {
       toast.error('Please fill in all fields');
       return;
     }
@@ -32,7 +32,7 @@ const CreateAdModal: React.FC<CreateAdModalProps> = ({ isOpen, onClose, onSubmit
     onSubmit(formData);
     toast.success('Ad created successfully!');
 
-    setFormData({ title: '', url: '', text: '', mediaUrl: '' });
+    setFormData({ title: '', url: '', text: '', imageUrl: '' });
   };
 
   const isImage = (url: string) => /\.(jpeg|jpg|gif|png|webp)$/i.test(url);
@@ -96,33 +96,33 @@ const CreateAdModal: React.FC<CreateAdModalProps> = ({ isOpen, onClose, onSubmit
 
           {/* Media URL */}
           <div className="space-y-2">
-            <Label htmlFor="mediaUrl" className="text-gray-300">Media URL (Image or Video)</Label>
+            <Label htmlFor="imageUrl" className="text-gray-300">Media URL (Image or Video)</Label>
             <Input
-              id="mediaUrl"
+              id="imageUrl"
               type="url"
               placeholder="https://example.com/ad.jpg or .mp4"
-              value={formData.mediaUrl}
-              onChange={(e) => setFormData({ ...formData, mediaUrl: e.target.value })}
+              value={formData.imageUrl}
+              onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
               className="bg-gray-700 border-gray-600 text-white"
               required
             />
           </div>
 
           {/* Preview */}
-          {(formData.mediaUrl || formData.title || formData.text) && (
+          {(formData.imageUrl || formData.title || formData.text) && (
             <div className="space-y-2">
               <Label className="text-gray-300">Ad Preview</Label>
               <div className="bg-gray-700 p-4 rounded-lg border border-gray-600 space-y-2">
-                {isImage(formData.mediaUrl) && (
+                {isImage(formData.imageUrl) && (
                   <img
-                    src={formData.mediaUrl}
+                    src={formData.imageUrl}
                     alt="Ad preview"
                     className="w-full h-32 object-cover rounded"
                   />
                 )}
-                {isVideo(formData.mediaUrl) && (
+                {isVideo(formData.imageUrl) && (
                   <video
-                    src={formData.mediaUrl}
+                    src={formData.imageUrl}
                     controls
                     className="w-full h-32 object-cover rounded"
                   />
