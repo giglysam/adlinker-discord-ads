@@ -23,8 +23,16 @@ serve(async (req) => {
     const triggerDistribution = async () => {
       try {
         console.log('⏰ Triggering scheduled ad distribution...')
-        await supabase.functions.invoke('distribute-ads')
-        console.log('✅ Distribution triggered successfully')
+        
+        const { data, error } = await supabase.functions.invoke('distribute-ads', {
+          body: { scheduled: true }
+        })
+        
+        if (error) {
+          console.error('❌ Error invoking distribute-ads:', error)
+        } else {
+          console.log('✅ Distribution triggered successfully:', data)
+        }
       } catch (error) {
         console.error('❌ Error triggering distribution:', error)
       }
@@ -33,24 +41,24 @@ serve(async (req) => {
     // Initial distribution
     await triggerDistribution()
 
-    // Set up continuous distribution every 30 minutes
-    const intervalId = setInterval(triggerDistribution, 30 * 60 * 1000) // 30 minutes
+    // Set up continuous distribution every 3 minutes
+    const intervalId = setInterval(triggerDistribution, 3 * 60 * 1000) // 3 minutes
 
-    // Keep the function running
+    // Keep the function running for 30 minutes, then let it restart
     await new Promise((resolve) => {
-      // This will keep the function alive
       setTimeout(() => {
         clearInterval(intervalId)
+        console.log('🔄 Scheduler cycle complete, will restart automatically')
         resolve(undefined)
-      }, 24 * 60 * 60 * 1000) // Run for 24 hours, then restart
+      }, 30 * 60 * 1000) // Run for 30 minutes
     })
 
     return new Response(
       JSON.stringify({ 
         success: true,
-        message: 'Ad scheduling system started successfully',
-        interval: '30 minutes',
-        duration: '24 hours'
+        message: 'Ad scheduling system completed cycle successfully',
+        interval: '3 minutes',
+        cycleDuration: '30 minutes'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
