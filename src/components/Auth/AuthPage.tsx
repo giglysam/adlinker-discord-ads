@@ -107,7 +107,7 @@ const AuthPage = () => {
       <CardHeader className="text-center pb-2">
         <div className="flex justify-center mb-4">
           <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center">
-            <span className="text-white font-bold text-2xl">DA</span>
+            <img src="/favicon.ico"></img>
           </div>
         </div>
         <CardTitle className="text-2xl font-bold text-white">Join DiscordAdNet</CardTitle>

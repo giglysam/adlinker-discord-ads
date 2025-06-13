@@ -22,7 +22,6 @@ const HomePage = () => {
           <div className="text-center">
             <div className="flex justify-center mb-8">
               <div className="w-24 h-24 bg-gradient-to-r from-blue-500 to-purple-600 rounded-3xl flex items-center justify-center">
-                <span className="text-white font-bold text-4xl">DA</span>
                 <img src="/favicon.ico"></img>
               </div>
             </div>
