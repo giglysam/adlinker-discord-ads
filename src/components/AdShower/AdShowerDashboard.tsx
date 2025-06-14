@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
@@ -12,7 +11,18 @@ import WebhookSetup from './WebhookSetup';
 import WebhookMonitor from './WebhookMonitor';
 
 const AdShowerDashboard = () => {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
+
+  // Refresh user data every 30 seconds to keep balance updated
+  useEffect(() => {
+    if (refreshUser) {
+      const interval = setInterval(() => {
+        refreshUser();
+      }, 30000);
+
+      return () => clearInterval(interval);
+    }
+  }, [refreshUser]);
 
   return (
     <div className="min-h-screen bg-gray-900 p-6">
@@ -33,6 +43,7 @@ const AdShowerDashboard = () => {
                 <div>
                   <p className="text-gray-400 text-sm">Current Balance</p>
                   <p className="text-2xl font-bold text-green-400">${(user?.balance || 0).toFixed(5)}</p>
+                  <p className="text-xs text-gray-500">Updates automatically</p>
                 </div>
                 <div className="w-12 h-12 bg-green-600/20 rounded-lg flex items-center justify-center">
                   <DollarSign className="w-6 h-6 text-green-400" />

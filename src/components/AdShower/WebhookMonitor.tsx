@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -17,7 +16,7 @@ interface WebhookStats {
 }
 
 const WebhookMonitor = () => {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [stats, setStats] = useState<WebhookStats>({
     totalWebhooks: 0,
     activeWebhooks: 0,
@@ -37,22 +36,42 @@ const WebhookMonitor = () => {
         .channel('webhook_activity')
         .on('postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'webhook_logs' },
-          () => {
-            console.log('New webhook activity detected')
+          (payload) => {
+            console.log('New webhook activity detected:', payload)
             loadStats()
+            // Refresh user data to get updated balance
+            if (refreshUser) {
+              refreshUser()
+            }
+          }
+        )
+        .on('postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'ad_deliveries' },
+          (payload) => {
+            console.log('New ad delivery detected:', payload)
+            loadStats()
+            // Refresh user data to get updated balance
+            if (refreshUser) {
+              refreshUser()
+            }
           }
         )
         .subscribe()
 
       // Refresh stats every 30 seconds
-      const interval = setInterval(loadStats, 30000)
+      const interval = setInterval(() => {
+        loadStats()
+        if (refreshUser) {
+          refreshUser()
+        }
+      }, 30000)
 
       return () => {
         subscription.unsubscribe()
         clearInterval(interval)
       }
     }
-  }, [user?.id]);
+  }, [user?.id, refreshUser]);
 
   const loadStats = async () => {
     if (!user?.id) return;
@@ -169,7 +188,12 @@ const WebhookMonitor = () => {
             <Button
               size="sm"
               variant="outline"
-              onClick={loadStats}
+              onClick={() => {
+                loadStats()
+                if (refreshUser) {
+                  refreshUser()
+                }
+              }}
               className="border-gray-600 text-gray-400 hover:bg-gray-700"
             >
               <RefreshCw className="w-4 h-4" />

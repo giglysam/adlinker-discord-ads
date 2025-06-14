@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -19,19 +20,27 @@ serve(async (req) => {
 
     console.log('🔄 Starting automatic ad scheduling system...')
 
-    // Function to trigger distribution
+    // Function to trigger distribution using direct HTTP call with proper auth
     const triggerDistribution = async () => {
       try {
         console.log('⏰ Triggering scheduled ad distribution...')
         
-        const { data, error } = await supabase.functions.invoke('distribute-ads', {
-          body: { scheduled: true }
+        const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/distribute-ads`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            'apikey': Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+          },
+          body: JSON.stringify({ scheduled: true })
         })
         
-        if (error) {
-          console.error('❌ Error invoking distribute-ads:', error)
-        } else {
+        if (response.ok) {
+          const data = await response.json()
           console.log('✅ Distribution triggered successfully:', data)
+        } else {
+          const errorText = await response.text()
+          console.error('❌ Error response from distribute-ads:', response.status, errorText)
         }
       } catch (error) {
         console.error('❌ Error triggering distribution:', error)
@@ -50,7 +59,7 @@ serve(async (req) => {
         clearInterval(intervalId)
         console.log('🔄 Scheduler cycle complete, will restart automatically')
         resolve(undefined)
-      }, 30 * 60 * 1000) // Run for 30 minutes
+      }, 25 * 60 * 1000) // Run for 25 minutes
     })
 
     return new Response(
@@ -58,7 +67,7 @@ serve(async (req) => {
         success: true,
         message: 'Ad scheduling system completed cycle successfully',
         interval: '3 minutes',
-        cycleDuration: '30 minutes'
+        cycleDuration: '25 minutes'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

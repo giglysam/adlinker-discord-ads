@@ -122,13 +122,17 @@ serve(async (req) => {
           totalSent++
           
           // Update impression count for the ad
-          await supabase
+          const { error: adUpdateError } = await supabase
             .from('ads')
             .update({ impressions: (ad.impressions || 0) + 1 })
             .eq('id', ad.id)
 
+          if (adUpdateError) {
+            console.error('❌ Error updating ad impressions:', adUpdateError)
+          }
+
           // Update webhook success stats
-          await supabase
+          const { error: webhookUpdateError } = await supabase
             .from('webhooks')
             .update({ 
               total_sent: (webhook.total_sent || 0) + 1,
@@ -138,8 +142,12 @@ serve(async (req) => {
             })
             .eq('id', webhook.id)
 
+          if (webhookUpdateError) {
+            console.error('❌ Error updating webhook stats:', webhookUpdateError)
+          }
+
           // Log successful delivery
-          await supabase
+          const { error: deliveryLogError } = await supabase
             .from('ad_deliveries')
             .insert({
               webhook_id: webhook.id,
@@ -148,8 +156,12 @@ serve(async (req) => {
               earning_amount: 0.00001
             })
 
+          if (deliveryLogError) {
+            console.error('❌ Error logging delivery:', deliveryLogError)
+          }
+
           // Log to webhook_logs for monitoring
-          await supabase
+          const { error: webhookLogError } = await supabase
             .from('webhook_logs')
             .insert({
               webhook_id: webhook.id,
@@ -159,12 +171,24 @@ serve(async (req) => {
               delivered_at: new Date().toISOString()
             })
 
-          // Award earnings to user
+          if (webhookLogError) {
+            console.error('❌ Error logging webhook activity:', webhookLogError)
+          }
+
+          // Award earnings to user using the database function
           const earnedAmount = 0.00001
-          await supabase.rpc('increment_user_balance', {
+          console.log(`💰 Awarding $${earnedAmount} to user ${webhook.user_id}`)
+          
+          const { data: balanceResult, error: balanceError } = await supabase.rpc('increment_user_balance', {
             user_id: webhook.user_id,
             amount: earnedAmount
           })
+
+          if (balanceError) {
+            console.error(`❌ Error updating user balance for ${webhook.user_id}:`, balanceError)
+          } else {
+            console.log(`✅ Successfully updated balance for user ${webhook.user_id}`)
+          }
 
           console.log(`✅ Successfully sent ad to ${webhook.server_name}, user earned $${earnedAmount}`)
 
@@ -174,7 +198,7 @@ serve(async (req) => {
           console.error(`❌ Webhook delivery failed for ${webhook.server_name}:`, response.status, responseText)
           
           // Update webhook error stats
-          await supabase
+          const { error: webhookErrorUpdate } = await supabase
             .from('webhooks')
             .update({ 
               total_errors: (webhook.total_errors || 0) + 1,
@@ -183,8 +207,12 @@ serve(async (req) => {
             })
             .eq('id', webhook.id)
 
+          if (webhookErrorUpdate) {
+            console.error('❌ Error updating webhook error stats:', webhookErrorUpdate)
+          }
+
           // Log failed delivery
-          await supabase
+          const { error: failedDeliveryError } = await supabase
             .from('ad_deliveries')
             .insert({
               webhook_id: webhook.id,
@@ -193,7 +221,11 @@ serve(async (req) => {
               error_message: `${response.status}: ${responseText}`
             })
 
-          await supabase
+          if (failedDeliveryError) {
+            console.error('❌ Error logging failed delivery:', failedDeliveryError)
+          }
+
+          const { error: failedWebhookLogError } = await supabase
             .from('webhook_logs')
             .insert({
               webhook_id: webhook.id,
@@ -203,13 +235,17 @@ serve(async (req) => {
               response_status: response.status,
               delivered_at: new Date().toISOString()
             })
+
+          if (failedWebhookLogError) {
+            console.error('❌ Error logging failed webhook activity:', failedWebhookLogError)
+          }
         }
       } catch (error) {
         totalErrors++
         console.error(`💥 Error sending to webhook ${webhook.server_name}:`, error)
         
         // Update error stats
-        await supabase
+        const { error: errorUpdateError } = await supabase
           .from('webhooks')
           .update({ 
             total_errors: (webhook.total_errors || 0) + 1,
@@ -218,8 +254,12 @@ serve(async (req) => {
           })
           .eq('id', webhook.id)
 
+        if (errorUpdateError) {
+          console.error('❌ Error updating webhook error stats:', errorUpdateError)
+        }
+
         // Log error
-        await supabase
+        const { error: errorLogError } = await supabase
           .from('ad_deliveries')
           .insert({
             webhook_id: webhook.id,
@@ -228,7 +268,11 @@ serve(async (req) => {
             error_message: error.message
           })
 
-        await supabase
+        if (errorLogError) {
+          console.error('❌ Error logging error delivery:', errorLogError)
+        }
+
+        const { error: errorWebhookLogError } = await supabase
           .from('webhook_logs')
           .insert({
             webhook_id: webhook.id,
@@ -237,6 +281,10 @@ serve(async (req) => {
             error_message: error.message,
             delivered_at: new Date().toISOString()
           })
+
+        if (errorWebhookLogError) {
+          console.error('❌ Error logging error webhook activity:', errorWebhookLogError)
+        }
       }
 
       // Small delay between webhook calls to avoid rate limiting
