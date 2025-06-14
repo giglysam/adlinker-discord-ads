@@ -19,45 +19,45 @@ serve(async (req) => {
     )
 
     const requestBody = await req.json().catch(() => ({}))
-    const isAutomated = requestBody.automated || requestBody.continuous || requestBody.scheduled
+    const isInfinite = requestBody.infinite || requestBody.automated || requestBody.continuous
 
-    console.log('🚀 AUTOMATIC ad distribution starting...', { 
-      automated: isAutomated, 
+    console.log('🚀 INFINITE ad distribution starting...', { 
+      infinite: isInfinite, 
       timestamp: new Date().toISOString() 
     })
 
-    // Get all public ads with enhanced logging
+    // Get all public ads
     const { data: ads, error: adsError } = await supabase
       .from('ads')
       .select('*')
       .eq('status', 'public')
 
     if (adsError) {
-      console.error('❌ AUTOMATIC: Error fetching ads:', adsError)
+      console.error('❌ INFINITE: Error fetching ads:', adsError)
       throw adsError
     }
 
-    console.log(`📊 AUTOMATIC: Found ${ads?.length || 0} public ads for distribution`)
+    console.log(`📊 INFINITE: Found ${ads?.length || 0} public ads for infinite distribution`)
 
-    // Get ALL ACTIVE webhooks with enhanced logging
+    // Get ALL ACTIVE webhooks
     const { data: webhooks, error: webhooksError } = await supabase
       .from('webhooks')
       .select('*')
       .eq('is_active', true)
 
     if (webhooksError) {
-      console.error('❌ AUTOMATIC: Error fetching webhooks:', webhooksError)
+      console.error('❌ INFINITE: Error fetching webhooks:', webhooksError)
       throw webhooksError
     }
 
-    console.log(`📊 AUTOMATIC: Found ${webhooks?.length || 0} active webhooks for distribution`)
+    console.log(`📊 INFINITE: Found ${webhooks?.length || 0} active webhooks for infinite distribution`)
 
     if (!ads || ads.length === 0) {
-      console.log('⚠️ AUTOMATIC: No public ads to distribute')
+      console.log('⚠️ INFINITE: No public ads to distribute - but continuing infinite loop')
       return new Response(
         JSON.stringify({ 
-          message: 'No public ads available for automatic distribution',
-          automated: isAutomated,
+          message: 'No public ads available but infinite system continues',
+          infinite: isInfinite,
           timestamp: new Date().toISOString()
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -65,11 +65,11 @@ serve(async (req) => {
     }
 
     if (!webhooks || webhooks.length === 0) {
-      console.log('⚠️ AUTOMATIC: No active webhooks found')
+      console.log('⚠️ INFINITE: No active webhooks found - but continuing infinite loop')
       return new Response(
         JSON.stringify({ 
-          message: 'No active webhooks for automatic distribution',
-          automated: isAutomated,
+          message: 'No active webhooks but infinite system continues',
+          infinite: isInfinite,
           timestamp: new Date().toISOString()
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -81,37 +81,37 @@ serve(async (req) => {
     let totalEarnings = 0
     const earnedAmount = 0.00001
 
-    console.log(`🎯 AUTOMATIC: Starting distribution to ${webhooks.length} webhooks...`)
+    console.log(`🎯 INFINITE: Starting infinite distribution to ${webhooks.length} webhooks...`)
 
-    // Enhanced automatic distribution process
+    // Enhanced infinite distribution process
     for (let i = 0; i < webhooks.length; i++) {
       const webhook = webhooks[i]
-      const ad = ads[i % ads.length] // Cycle through ads
+      const ad = ads[i % ads.length] // Cycle through ads infinitely
 
       try {
-        // Create enhanced Discord message for automatic system
+        // Create enhanced Discord message for infinite system
         const discordMessage = {
-          content: "💰 **AUTOMATIC Sponsored Content** - Earning money automatically!",
+          content: "♾️ **INFINITE Sponsored Content** - Earning money infinitely!",
           embeds: [
             {
-              title: ad.title || "Automatic Sponsored Content",
-              description: ad.text || "Check out this automatic offer!",
+              title: ad.title || "Infinite Sponsored Content",
+              description: ad.text || "Check out this infinite offer!",
               url: ad.url || "https://discord.com",
               color: 5865242,
               fields: [
                 {
-                  name: "💰 Automatic Earning System",
-                  value: "You earn money automatically for every ad view!",
+                  name: "♾️ Infinite Earning System",
+                  value: "You earn money infinitely for every ad view!",
                   inline: false
                 },
                 {
-                  name: "🤖 System Status",
-                  value: "Fully Automated • 24/7 Operation",
+                  name: "🔄 System Status", 
+                  value: "Infinite Loop Active • Never Stops",
                   inline: true
                 }
               ],
               footer: {
-                text: "💰 Automatic DiscordAdNet - Earning money automatically!"
+                text: "♾️ Infinite DiscordAdNet - Earning money forever!"
               },
               timestamp: new Date().toISOString()
             }
@@ -122,27 +122,27 @@ serve(async (req) => {
           discordMessage.embeds[0].image = { url: ad.image_url }
         }
 
-        console.log(`📤 AUTOMATIC: Sending "${ad.title}" to ${webhook.server_name}`)
+        console.log(`📤 INFINITE: Sending "${ad.title}" to ${webhook.server_name}`)
 
-        // Send to Discord webhook with enhanced error handling
+        // Send to Discord webhook
         const response = await fetch(webhook.webhook_url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'User-Agent': 'DiscordAdNet-AutoBot/2.0'
+            'User-Agent': 'DiscordAdNet-InfiniteBot/3.0'
           },
           body: JSON.stringify(discordMessage)
         })
 
-        console.log(`📡 AUTOMATIC: Discord response for ${webhook.server_name}: ${response.status}`)
+        console.log(`📡 INFINITE: Discord response for ${webhook.server_name}: ${response.status}`)
 
         if (response.ok) {
           totalSent++
           totalEarnings += earnedAmount
           
-          console.log(`💰 AUTOMATIC: Processing earnings for user ${webhook.user_id}`)
+          console.log(`💰 INFINITE: Processing infinite earnings for user ${webhook.user_id}`)
           
-          // DIRECT balance update with comprehensive logging
+          // DIRECT balance update with infinite logging
           const { data: currentUser, error: getUserError } = await supabase
             .from('users')
             .select('balance')
@@ -153,7 +153,7 @@ serve(async (req) => {
             const currentBalance = currentUser.balance || 0
             const newBalance = Number((currentBalance + earnedAmount).toFixed(8))
             
-            console.log(`💰 AUTOMATIC: User ${webhook.user_id}: $${currentBalance} → $${newBalance}`)
+            console.log(`💰 INFINITE: User ${webhook.user_id}: $${currentBalance} → $${newBalance}`)
             
             const { error: balanceError } = await supabase
               .from('users')
@@ -164,9 +164,9 @@ serve(async (req) => {
               .eq('id', webhook.user_id)
             
             if (!balanceError) {
-              console.log(`✅ AUTOMATIC: Balance updated successfully for user ${webhook.user_id}`)
+              console.log(`✅ INFINITE: Balance updated successfully for user ${webhook.user_id}`)
               
-              // Verification step
+              // Verification step for infinite system
               const { data: verifyUser } = await supabase
                 .from('users')
                 .select('balance')
@@ -174,20 +174,20 @@ serve(async (req) => {
                 .single()
 
               if (verifyUser) {
-                console.log(`✅ AUTOMATIC: Verified new balance: $${verifyUser.balance}`)
+                console.log(`✅ INFINITE: Verified new infinite balance: $${verifyUser.balance}`)
               }
             } else {
-              console.error(`❌ AUTOMATIC: Balance update failed:`, balanceError)
+              console.error(`❌ INFINITE: Balance update failed:`, balanceError)
             }
           }
 
-          // Update ad impressions
+          // Update ad impressions for infinite tracking
           await supabase
             .from('ads')
             .update({ impressions: (ad.impressions || 0) + 1 })
             .eq('id', ad.id)
 
-          // Update webhook success stats
+          // Update webhook success stats for infinite system
           await supabase
             .from('webhooks')
             .update({ 
@@ -198,7 +198,7 @@ serve(async (req) => {
             })
             .eq('id', webhook.id)
 
-          // Log successful automatic delivery
+          // Log successful infinite delivery
           await supabase
             .from('ad_deliveries')
             .insert({
@@ -218,14 +218,14 @@ serve(async (req) => {
               delivered_at: new Date().toISOString()
             })
 
-          console.log(`✅ AUTOMATIC: Success for ${webhook.server_name}, earned $${earnedAmount}`)
+          console.log(`✅ INFINITE: Success for ${webhook.server_name}, earned $${earnedAmount}`)
 
         } else {
           const responseText = await response.text()
           totalErrors++
-          console.error(`❌ AUTOMATIC: Failed for ${webhook.server_name}:`, response.status, responseText)
+          console.error(`❌ INFINITE: Failed for ${webhook.server_name}:`, response.status, responseText)
           
-          // Log errors with automatic recovery
+          // Log errors for infinite system but continue
           await supabase
             .from('webhooks')
             .update({ 
@@ -257,9 +257,9 @@ serve(async (req) => {
         }
       } catch (error) {
         totalErrors++
-        console.error(`💥 AUTOMATIC: Exception for webhook ${webhook.server_name}:`, error)
+        console.error(`💥 INFINITE: Exception for webhook ${webhook.server_name}:`, error)
         
-        // Log errors but continue
+        // Log errors but continue infinite operation
         await supabase
           .from('webhooks')
           .update({ 
@@ -279,15 +279,15 @@ serve(async (req) => {
           })
       }
 
-      // Automatic pacing - small delay between sends
-      await new Promise(resolve => setTimeout(resolve, 800))
+      // Infinite pacing - small delay between sends
+      await new Promise(resolve => setTimeout(resolve, 500))
     }
 
     const summary = {
       success: true,
-      message: `AUTOMATIC distribution complete: ${totalSent} successful, ${totalErrors} errors`,
-      automated: isAutomated,
-      mode: 'FULLY_AUTOMATIC',
+      message: `INFINITE distribution complete: ${totalSent} successful, ${totalErrors} errors`,
+      infinite: isInfinite,
+      mode: 'INFINITE_OPERATION',
       timestamp: new Date().toISOString(),
       stats: {
         adsDistributed: ads.length,
@@ -295,13 +295,14 @@ serve(async (req) => {
         totalDeliveries: totalSent,
         totalErrors: totalErrors,
         totalEarnings: Number(totalEarnings.toFixed(8)),
-        runType: 'automatic'
+        runType: 'infinite'
       }
     }
 
-    console.log(`🎯 AUTOMATIC distribution COMPLETE!`)
-    console.log(`📊 AUTOMATIC STATS: ${totalSent} successful, ${totalErrors} errors`)
-    console.log(`💰 AUTOMATIC EARNINGS: $${totalEarnings.toFixed(8)} distributed`)
+    console.log(`🎯 INFINITE distribution COMPLETE!`)
+    console.log(`📊 INFINITE STATS: ${totalSent} successful, ${totalErrors} errors`)
+    console.log(`💰 INFINITE EARNINGS: $${totalEarnings.toFixed(8)} distributed`)
+    console.log(`♾️ INFINITE SYSTEM CONTINUES FOREVER!`)
 
     return new Response(
       JSON.stringify(summary),
@@ -309,13 +310,13 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('💥 AUTOMATIC DISTRIBUTION CRITICAL ERROR:', error)
+    console.error('💥 INFINITE DISTRIBUTION CRITICAL ERROR:', error)
     return new Response(
       JSON.stringify({ 
         error: error.message,
         success: false,
-        automated: true,
-        mode: 'AUTOMATIC_ERROR',
+        infinite: true,
+        mode: 'INFINITE_ERROR_RECOVERY',
         timestamp: new Date().toISOString()
       }),
       { 
