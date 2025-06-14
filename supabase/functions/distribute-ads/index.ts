@@ -64,6 +64,7 @@ serve(async (req) => {
 
     let totalSent = 0
     let totalErrors = 0
+    let totalEarnings = 0
 
     console.log(`🎯 Starting distribution to ${webhooks.length} webhook slots...`)
 
@@ -120,6 +121,8 @@ serve(async (req) => {
 
         if (response.ok) {
           totalSent++
+          const earnedAmount = 0.00001
+          totalEarnings += earnedAmount
           
           // Update impression count for the ad
           const { error: adUpdateError } = await supabase
@@ -153,7 +156,7 @@ serve(async (req) => {
               webhook_id: webhook.id,
               ad_id: ad.id,
               status: 'success',
-              earning_amount: 0.00001
+              earning_amount: earnedAmount
             })
 
           if (deliveryLogError) {
@@ -175,8 +178,7 @@ serve(async (req) => {
             console.error('❌ Error logging webhook activity:', webhookLogError)
           }
 
-          // Award earnings to user using the database function
-          const earnedAmount = 0.00001
+          // **ENHANCED BALANCE UPDATE** - Award earnings to user using the database function
           console.log(`💰 Awarding $${earnedAmount} to user ${webhook.user_id}`)
           
           const { data: balanceResult, error: balanceError } = await supabase.rpc('increment_user_balance', {
@@ -186,8 +188,33 @@ serve(async (req) => {
 
           if (balanceError) {
             console.error(`❌ Error updating user balance for ${webhook.user_id}:`, balanceError)
+            // Try a direct update as fallback
+            const { error: fallbackError } = await supabase
+              .from('users')
+              .update({ 
+                balance: supabase.sql`COALESCE(balance, 0) + ${earnedAmount}`,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', webhook.user_id)
+            
+            if (fallbackError) {
+              console.error(`❌ Fallback balance update also failed for ${webhook.user_id}:`, fallbackError)
+            } else {
+              console.log(`✅ Fallback balance update successful for user ${webhook.user_id}`)
+            }
           } else {
             console.log(`✅ Successfully updated balance for user ${webhook.user_id}`)
+          }
+
+          // Verify balance was updated
+          const { data: updatedUser, error: userCheckError } = await supabase
+            .from('users')
+            .select('balance')
+            .eq('id', webhook.user_id)
+            .single()
+
+          if (!userCheckError && updatedUser) {
+            console.log(`✅ Verified: User ${webhook.user_id} new balance: $${updatedUser.balance}`)
           }
 
           console.log(`✅ Successfully sent ad to ${webhook.server_name}, user earned $${earnedAmount}`)
@@ -293,6 +320,7 @@ serve(async (req) => {
 
     console.log(`🎯 Ad distribution complete!`)
     console.log(`📊 Total deliveries: ${totalSent} successful, ${totalErrors} errors`)
+    console.log(`💰 Total earnings distributed: $${totalEarnings.toFixed(5)}`)
 
     return new Response(
       JSON.stringify({ 
@@ -301,7 +329,8 @@ serve(async (req) => {
         adsDistributed: ads.length,
         webhooksUsed: webhooks.length,
         totalDeliveries: totalSent,
-        totalErrors: totalErrors
+        totalErrors: totalErrors,
+        totalEarnings: totalEarnings
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

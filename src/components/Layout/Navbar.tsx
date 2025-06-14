@@ -1,11 +1,38 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { LogOut, Settings, DollarSign, Plus, Monitor } from 'lucide-react';
 
 const Navbar = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
+
+  // Enhanced real-time balance updates for navbar
+  useEffect(() => {
+    if (!user?.id || user.role !== 'shower' || !refreshUser) return;
+
+    // Set up real-time subscription for user balance changes in navbar
+    const userChannel = supabase
+      .channel('navbar_user_balance')
+      .on('postgres_changes',
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'users',
+          filter: `id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('Navbar: User balance updated:', payload.new);
+          refreshUser();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(userChannel);
+    };
+  }, [user?.id, user?.role, refreshUser]);
 
   if (!user) return null;
 
@@ -53,6 +80,7 @@ const Navbar = () => {
               <div className="flex items-center space-x-2 bg-green-900/30 px-3 py-1 rounded-full">
                 <DollarSign className="w-4 h-4 text-green-400" />
                 <span className="text-green-400 font-medium">${user.balance.toFixed(5)}</span>
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" title="Live balance updates"></div>
               </div>
             )}
             <div className="text-gray-300">
