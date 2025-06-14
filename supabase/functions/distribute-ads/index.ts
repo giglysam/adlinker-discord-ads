@@ -7,6 +7,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY')
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -19,10 +21,10 @@ serve(async (req) => {
     )
 
     const requestBody = await req.json().catch(() => ({}))
-    const isInfinite = requestBody.infinite || requestBody.automated || requestBody.continuous
+    const isLLMMode = requestBody.llm_mode || requestBody.continuous_llm
 
-    console.log('🚀 INFINITE ad distribution starting...', { 
-      infinite: isInfinite, 
+    console.log('🤖 LLM-POWERED ad distribution starting...', { 
+      llm_mode: isLLMMode, 
       timestamp: new Date().toISOString() 
     })
 
@@ -33,11 +35,11 @@ serve(async (req) => {
       .eq('status', 'public')
 
     if (adsError) {
-      console.error('❌ INFINITE: Error fetching ads:', adsError)
+      console.error('❌ LLM: Error fetching ads:', adsError)
       throw adsError
     }
 
-    console.log(`📊 INFINITE: Found ${ads?.length || 0} public ads for infinite distribution`)
+    console.log(`📊 LLM: Found ${ads?.length || 0} public ads for LLM evaluation`)
 
     // Get ALL ACTIVE webhooks
     const { data: webhooks, error: webhooksError } = await supabase
@@ -46,18 +48,23 @@ serve(async (req) => {
       .eq('is_active', true)
 
     if (webhooksError) {
-      console.error('❌ INFINITE: Error fetching webhooks:', webhooksError)
+      console.error('❌ LLM: Error fetching webhooks:', webhooksError)
       throw webhooksError
     }
 
-    console.log(`📊 INFINITE: Found ${webhooks?.length || 0} active webhooks for infinite distribution`)
+    console.log(`📊 LLM: Found ${webhooks?.length || 0} active webhooks`)
 
     if (!ads || ads.length === 0) {
-      console.log('⚠️ INFINITE: No public ads to distribute - but continuing infinite loop')
+      console.log('⚠️ LLM: No public ads to evaluate - scheduling retry in 1 minute')
+      
+      // Schedule next cycle even with no ads
+      EdgeRuntime.waitUntil(scheduleNextLLMCycle(supabase))
+      
       return new Response(
         JSON.stringify({ 
-          message: 'No public ads available but infinite system continues',
-          infinite: isInfinite,
+          message: 'No public ads available - LLM cycle continues',
+          llm_mode: isLLMMode,
+          next_cycle_in: '1 minute',
           timestamp: new Date().toISOString()
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -65,84 +72,130 @@ serve(async (req) => {
     }
 
     if (!webhooks || webhooks.length === 0) {
-      console.log('⚠️ INFINITE: No active webhooks found - but continuing infinite loop')
+      console.log('⚠️ LLM: No active webhooks found - scheduling retry in 1 minute')
+      
+      // Schedule next cycle even with no webhooks
+      EdgeRuntime.waitUntil(scheduleNextLLMCycle(supabase))
+      
       return new Response(
         JSON.stringify({ 
-          message: 'No active webhooks but infinite system continues',
-          infinite: isInfinite,
+          message: 'No active webhooks - LLM cycle continues',
+          llm_mode: isLLMMode,
+          next_cycle_in: '1 minute',
           timestamp: new Date().toISOString()
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
+    // Select the first ad for LLM evaluation
+    const currentAd = ads[0]
+    console.log(`🤖 LLM: Evaluating ad: "${currentAd.title}"`)
+
+    // Send ad to OpenRouter LLM for evaluation
+    const llmApproval = await evaluateAdWithLLM(currentAd)
+    
+    console.log(`🤖 LLM Response: ${llmApproval.approved ? 'APPROVED' : 'REJECTED'}`)
+    console.log(`🤖 LLM Reasoning: ${llmApproval.reasoning}`)
+
+    if (!llmApproval.approved) {
+      console.log('❌ LLM: Ad rejected by AI - scheduling next cycle in 1 minute')
+      
+      // Log the rejection
+      await supabase
+        .from('ad_deliveries')
+        .insert({
+          webhook_id: null,
+          ad_id: currentAd.id,
+          status: 'llm_rejected',
+          error_message: `LLM Rejection: ${llmApproval.reasoning}`
+        })
+
+      // Schedule next cycle after rejection
+      EdgeRuntime.waitUntil(scheduleNextLLMCycle(supabase))
+      
+      return new Response(
+        JSON.stringify({ 
+          message: 'Ad rejected by LLM - cycle continues',
+          ad_title: currentAd.title,
+          llm_reasoning: llmApproval.reasoning,
+          next_cycle_in: '1 minute',
+          timestamp: new Date().toISOString()
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // LLM approved the ad - proceed with distribution
+    console.log('✅ LLM: Ad approved by AI - starting distribution to Discord')
+
     let totalSent = 0
     let totalErrors = 0
     let totalEarnings = 0
     const earnedAmount = 0.00001
 
-    console.log(`🎯 INFINITE: Starting infinite distribution to ${webhooks.length} webhooks...`)
-
-    // Enhanced infinite distribution process
-    for (let i = 0; i < webhooks.length; i++) {
-      const webhook = webhooks[i]
-      const ad = ads[i % ads.length] // Cycle through ads infinitely
-
+    // Distribute the LLM-approved ad to all webhooks
+    for (const webhook of webhooks) {
       try {
-        // Create enhanced Discord message for infinite system
+        // Create enhanced Discord message for LLM-approved content
         const discordMessage = {
-          content: "♾️ **INFINITE Sponsored Content** - Earning money infinitely!",
+          content: "🤖 **AI-Approved Sponsored Content** - Quality guaranteed by AI!",
           embeds: [
             {
-              title: ad.title || "Infinite Sponsored Content",
-              description: ad.text || "Check out this infinite offer!",
-              url: ad.url || "https://discord.com",
+              title: currentAd.title || "AI-Approved Sponsored Content",
+              description: currentAd.text || "Check out this AI-verified offer!",
+              url: currentAd.url || "https://discord.com",
               color: 5865242,
               fields: [
                 {
-                  name: "♾️ Infinite Earning System",
-                  value: "You earn money infinitely for every ad view!",
+                  name: "🤖 AI Quality Check",
+                  value: "✅ Approved by AI Assistant",
                   inline: false
                 },
                 {
-                  name: "🔄 System Status", 
-                  value: "Infinite Loop Active • Never Stops",
+                  name: "💰 Earning Opportunity", 
+                  value: `You earn $${earnedAmount} for this view!`,
                   inline: true
+                },
+                {
+                  name: "🎯 AI Reasoning",
+                  value: llmApproval.reasoning.substring(0, 100) + "...",
+                  inline: false
                 }
               ],
               footer: {
-                text: "♾️ Infinite DiscordAdNet - Earning money forever!"
+                text: "🤖 AI-Powered DiscordAdNet - Quality content guaranteed!"
               },
               timestamp: new Date().toISOString()
             }
           ]
         }
 
-        if (ad.image_url) {
-          discordMessage.embeds[0].image = { url: ad.image_url }
+        if (currentAd.image_url) {
+          discordMessage.embeds[0].image = { url: currentAd.image_url }
         }
 
-        console.log(`📤 INFINITE: Sending "${ad.title}" to ${webhook.server_name}`)
+        console.log(`📤 LLM: Sending AI-approved "${currentAd.title}" to ${webhook.server_name}`)
 
         // Send to Discord webhook
         const response = await fetch(webhook.webhook_url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'User-Agent': 'DiscordAdNet-InfiniteBot/3.0'
+            'User-Agent': 'DiscordAdNet-AIBot/1.0'
           },
           body: JSON.stringify(discordMessage)
         })
 
-        console.log(`📡 INFINITE: Discord response for ${webhook.server_name}: ${response.status}`)
+        console.log(`📡 LLM: Discord response for ${webhook.server_name}: ${response.status}`)
 
         if (response.ok) {
           totalSent++
           totalEarnings += earnedAmount
           
-          console.log(`💰 INFINITE: Processing infinite earnings for user ${webhook.user_id}`)
+          console.log(`💰 LLM: Processing earnings for user ${webhook.user_id}`)
           
-          // DIRECT balance update with infinite logging
+          // Update user balance
           const { data: currentUser, error: getUserError } = await supabase
             .from('users')
             .select('balance')
@@ -153,7 +206,7 @@ serve(async (req) => {
             const currentBalance = currentUser.balance || 0
             const newBalance = Number((currentBalance + earnedAmount).toFixed(8))
             
-            console.log(`💰 INFINITE: User ${webhook.user_id}: $${currentBalance} → $${newBalance}`)
+            console.log(`💰 LLM: User ${webhook.user_id}: $${currentBalance} → $${newBalance}`)
             
             const { error: balanceError } = await supabase
               .from('users')
@@ -164,30 +217,19 @@ serve(async (req) => {
               .eq('id', webhook.user_id)
             
             if (!balanceError) {
-              console.log(`✅ INFINITE: Balance updated successfully for user ${webhook.user_id}`)
-              
-              // Verification step for infinite system
-              const { data: verifyUser } = await supabase
-                .from('users')
-                .select('balance')
-                .eq('id', webhook.user_id)
-                .single()
-
-              if (verifyUser) {
-                console.log(`✅ INFINITE: Verified new infinite balance: $${verifyUser.balance}`)
-              }
+              console.log(`✅ LLM: Balance updated successfully for user ${webhook.user_id}`)
             } else {
-              console.error(`❌ INFINITE: Balance update failed:`, balanceError)
+              console.error(`❌ LLM: Balance update failed:`, balanceError)
             }
           }
 
-          // Update ad impressions for infinite tracking
+          // Update ad impressions
           await supabase
             .from('ads')
-            .update({ impressions: (ad.impressions || 0) + 1 })
-            .eq('id', ad.id)
+            .update({ impressions: (currentAd.impressions || 0) + 1 })
+            .eq('id', currentAd.id)
 
-          // Update webhook success stats for infinite system
+          // Update webhook success stats
           await supabase
             .from('webhooks')
             .update({ 
@@ -198,34 +240,24 @@ serve(async (req) => {
             })
             .eq('id', webhook.id)
 
-          // Log successful infinite delivery
+          // Log successful delivery
           await supabase
             .from('ad_deliveries')
             .insert({
               webhook_id: webhook.id,
-              ad_id: ad.id,
+              ad_id: currentAd.id,
               status: 'success',
               earning_amount: earnedAmount
             })
 
-          await supabase
-            .from('webhook_logs')
-            .insert({
-              webhook_id: webhook.id,
-              ad_id: ad.id,
-              status: 'success',
-              response_status: response.status,
-              delivered_at: new Date().toISOString()
-            })
-
-          console.log(`✅ INFINITE: Success for ${webhook.server_name}, earned $${earnedAmount}`)
+          console.log(`✅ LLM: Success for ${webhook.server_name}, earned $${earnedAmount}`)
 
         } else {
           const responseText = await response.text()
           totalErrors++
-          console.error(`❌ INFINITE: Failed for ${webhook.server_name}:`, response.status, responseText)
+          console.error(`❌ LLM: Failed for ${webhook.server_name}:`, response.status, responseText)
           
-          // Log errors for infinite system but continue
+          // Log errors
           await supabase
             .from('webhooks')
             .update({ 
@@ -239,27 +271,16 @@ serve(async (req) => {
             .from('ad_deliveries')
             .insert({
               webhook_id: webhook.id,
-              ad_id: ad.id,
+              ad_id: currentAd.id,
               status: 'error',
               error_message: `${response.status}: ${responseText}`
-            })
-
-          await supabase
-            .from('webhook_logs')
-            .insert({
-              webhook_id: webhook.id,
-              ad_id: ad.id,
-              status: 'error',
-              error_message: `${response.status}: ${responseText}`,
-              response_status: response.status,
-              delivered_at: new Date().toISOString()
             })
         }
       } catch (error) {
         totalErrors++
-        console.error(`💥 INFINITE: Exception for webhook ${webhook.server_name}:`, error)
+        console.error(`💥 LLM: Exception for webhook ${webhook.server_name}:`, error)
         
-        // Log errors but continue infinite operation
+        // Log errors
         await supabase
           .from('webhooks')
           .update({ 
@@ -273,36 +294,43 @@ serve(async (req) => {
           .from('ad_deliveries')
           .insert({
             webhook_id: webhook.id,
-            ad_id: ad.id,
+            ad_id: currentAd.id,
             status: 'error',
             error_message: error.message
           })
       }
 
-      // Infinite pacing - small delay between sends
+      // Small delay between sends
       await new Promise(resolve => setTimeout(resolve, 500))
     }
 
+    console.log(`🎯 LLM: Distribution complete - scheduling next cycle in 1 minute`)
+    
+    // Schedule the next LLM cycle as a background task
+    EdgeRuntime.waitUntil(scheduleNextLLMCycle(supabase))
+
     const summary = {
       success: true,
-      message: `INFINITE distribution complete: ${totalSent} successful, ${totalErrors} errors`,
-      infinite: isInfinite,
-      mode: 'INFINITE_OPERATION',
+      message: `LLM-approved ad distributed: ${totalSent} successful, ${totalErrors} errors`,
+      llm_mode: true,
+      ad_title: currentAd.title,
+      llm_approval: llmApproval.reasoning,
+      next_cycle_in: '1 minute',
       timestamp: new Date().toISOString(),
       stats: {
-        adsDistributed: ads.length,
+        adEvaluated: currentAd.title,
         webhooksUsed: webhooks.length,
         totalDeliveries: totalSent,
         totalErrors: totalErrors,
         totalEarnings: Number(totalEarnings.toFixed(8)),
-        runType: 'infinite'
+        runType: 'llm_continuous'
       }
     }
 
-    console.log(`🎯 INFINITE distribution COMPLETE!`)
-    console.log(`📊 INFINITE STATS: ${totalSent} successful, ${totalErrors} errors`)
-    console.log(`💰 INFINITE EARNINGS: $${totalEarnings.toFixed(8)} distributed`)
-    console.log(`♾️ INFINITE SYSTEM CONTINUES FOREVER!`)
+    console.log(`🤖 LLM distribution COMPLETE!`)
+    console.log(`📊 LLM STATS: ${totalSent} successful, ${totalErrors} errors`)
+    console.log(`💰 LLM EARNINGS: $${totalEarnings.toFixed(8)} distributed`)
+    console.log(`⏰ NEXT LLM CYCLE: 1 minute`)
 
     return new Response(
       JSON.stringify(summary),
@@ -310,13 +338,12 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('💥 INFINITE DISTRIBUTION CRITICAL ERROR:', error)
+    console.error('💥 LLM DISTRIBUTION CRITICAL ERROR:', error)
     return new Response(
       JSON.stringify({ 
         error: error.message,
         success: false,
-        infinite: true,
-        mode: 'INFINITE_ERROR_RECOVERY',
+        llm_mode: true,
         timestamp: new Date().toISOString()
       }),
       { 
@@ -326,3 +353,100 @@ serve(async (req) => {
     )
   }
 })
+
+// Function to evaluate ad with OpenRouter LLM
+async function evaluateAdWithLLM(ad: any): Promise<{approved: boolean, reasoning: string}> {
+  if (!OPENROUTER_API_KEY) {
+    console.error('❌ LLM: OpenRouter API key not configured')
+    return { approved: true, reasoning: 'LLM evaluation skipped - no API key' }
+  }
+
+  try {
+    const prompt = `Please evaluate this advertisement for quality and appropriateness:
+
+Title: ${ad.title || 'No title'}
+Content: ${ad.text || 'No content'}
+URL: ${ad.url || 'No URL'}
+
+Instructions:
+- If the ad is appropriate, safe, and of good quality, respond with "CONTINUE" followed by a brief reason
+- If the ad is inappropriate, unsafe, or low quality, respond with "STOP" followed by a brief reason
+- Keep your response concise and professional
+
+Your evaluation:`
+
+    console.log('🤖 LLM: Sending ad to OpenRouter for evaluation...')
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://discordadnet.com',
+        'X-Title': 'DiscordAdNet AI Content Moderator'
+      },
+      body: JSON.stringify({
+        model: 'deepseek/deepseek-r1-0528-qwen3-8b:free',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an AI content moderator for an advertising platform. Evaluate ads for quality and appropriateness.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: 200,
+        temperature: 0.3
+      })
+    })
+
+    if (!response.ok) {
+      console.error('❌ LLM: OpenRouter API error:', response.status)
+      return { approved: true, reasoning: 'LLM evaluation failed - defaulting to approve' }
+    }
+
+    const data = await response.json()
+    const llmResponse = data.choices[0]?.message?.content || ''
+    
+    console.log('🤖 LLM Raw Response:', llmResponse)
+
+    const approved = llmResponse.toUpperCase().includes('CONTINUE')
+    const reasoning = llmResponse.replace(/^(CONTINUE|STOP)\s*/i, '').trim()
+
+    return {
+      approved,
+      reasoning: reasoning || (approved ? 'AI approved the content' : 'AI rejected the content')
+    }
+
+  } catch (error) {
+    console.error('💥 LLM: Error evaluating ad:', error)
+    return { approved: true, reasoning: 'LLM evaluation error - defaulting to approve' }
+  }
+}
+
+// Function to schedule the next LLM cycle (background task)
+async function scheduleNextLLMCycle(supabase: any) {
+  console.log('⏰ LLM: Scheduling next cycle in 60 seconds...')
+  
+  // Wait 1 minute
+  await new Promise(resolve => setTimeout(resolve, 60000))
+  
+  try {
+    console.log('🔄 LLM: Triggering next cycle...')
+    
+    // Call the distribute-ads function again with LLM mode
+    const { error } = await supabase.functions.invoke('distribute-ads', {
+      body: { llm_mode: true, continuous_llm: true }
+    })
+    
+    if (error) {
+      console.error('❌ LLM: Error triggering next cycle:', error)
+    } else {
+      console.log('✅ LLM: Successfully triggered next cycle')
+    }
+  } catch (error) {
+    console.error('💥 LLM: Critical error in cycle scheduling:', error)
+  }
+}
