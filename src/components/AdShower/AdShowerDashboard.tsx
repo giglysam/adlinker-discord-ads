@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,19 +14,24 @@ import WebhookMonitor from './WebhookMonitor';
 
 const AdShowerDashboard = () => {
   const { user, refreshUser } = useAuth();
+  const [lastRefresh, setLastRefresh] = useState(Date.now());
 
-  // Enhanced real-time balance updates with more frequent refresh
+  // Enhanced real-time balance updates
   useEffect(() => {
     if (!user?.id || !refreshUser) return;
 
-    // Refresh user data every 5 seconds for immediate updates
+    console.log('Setting up real-time balance tracking for user:', user.id);
+
+    // Force refresh balance every 3 seconds for immediate updates
     const balanceInterval = setInterval(() => {
+      console.log('Force refreshing user balance...');
       refreshUser();
-    }, 5000);
+      setLastRefresh(Date.now());
+    }, 3000);
 
     // Set up real-time subscription for user balance changes
     const userChannel = supabase
-      .channel('user_balance_changes')
+      .channel('user_balance_updates')
       .on('postgres_changes',
         { 
           event: 'UPDATE', 
@@ -35,16 +40,17 @@ const AdShowerDashboard = () => {
           filter: `id=eq.${user.id}`
         },
         (payload) => {
-          console.log('Real-time user balance updated:', payload.new);
-          // Immediately refresh user data when balance changes
+          console.log('Real-time user balance change detected:', payload.new);
+          console.log('Old balance:', payload.old?.balance, 'New balance:', payload.new?.balance);
           refreshUser();
+          setLastRefresh(Date.now());
         }
       )
       .subscribe();
 
-    // Set up real-time subscription for new ad deliveries to this user's webhooks
+    // Set up real-time subscription for new ad deliveries
     const deliveryChannel = supabase
-      .channel('ad_delivery_updates')
+      .channel('delivery_updates')
       .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'ad_deliveries' },
         async (payload) => {
@@ -59,9 +65,38 @@ const AdShowerDashboard = () => {
             .single();
             
           if (webhook) {
-            console.log('Ad delivery for current user, refreshing balance immediately');
-            // Immediate refresh when user earns money
-            refreshUser();
+            console.log('Ad delivery for current user detected, refreshing balance');
+            setTimeout(() => {
+              refreshUser();
+              setLastRefresh(Date.now());
+            }, 500); // Small delay to ensure DB update is complete
+          }
+        }
+      )
+      .subscribe();
+
+    // Set up real-time subscription for webhook logs (alternative tracking)
+    const webhookLogChannel = supabase
+      .channel('webhook_log_updates')
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'webhook_logs' },
+        async (payload) => {
+          console.log('New webhook log detected:', payload.new);
+          
+          // Check if this is for the current user's webhook
+          const { data: webhook } = await supabase
+            .from('webhooks')
+            .select('user_id')
+            .eq('id', payload.new.webhook_id)
+            .eq('user_id', user.id)
+            .single();
+            
+          if (webhook && payload.new.status === 'success') {
+            console.log('Successful webhook delivery for current user, refreshing balance');
+            setTimeout(() => {
+              refreshUser();
+              setLastRefresh(Date.now());
+            }, 1000); // Longer delay for webhook logs
           }
         }
       )
@@ -71,6 +106,7 @@ const AdShowerDashboard = () => {
       clearInterval(balanceInterval);
       supabase.removeChannel(userChannel);
       supabase.removeChannel(deliveryChannel);
+      supabase.removeChannel(webhookLogChannel);
     };
   }, [user?.id, refreshUser]);
 
@@ -95,8 +131,11 @@ const AdShowerDashboard = () => {
                   <p className="text-2xl font-bold text-green-400">${(user?.balance || 0).toFixed(5)}</p>
                   <div className="flex items-center space-x-2 mt-1">
                     <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                    <p className="text-xs text-green-400">Live updates every 5 seconds</p>
+                    <p className="text-xs text-green-400">Live updates every 3 seconds</p>
                   </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Last update: {new Date(lastRefresh).toLocaleTimeString()}
+                  </p>
                 </div>
                 <div className="w-12 h-12 bg-green-600/20 rounded-lg flex items-center justify-center">
                   <DollarSign className="w-6 h-6 text-green-400" />
@@ -172,6 +211,9 @@ const AdShowerDashboard = () => {
                 <h3 className="text-green-400 font-semibold">Live Ad Distribution System</h3>
                 <p className="text-gray-300 text-sm">
                   Ads are being sent to your webhooks every minute, 24/7. Earnings are added to your balance instantly.
+                </p>
+                <p className="text-gray-400 text-xs mt-1">
+                  Balance tracking active - updates every 3 seconds
                 </p>
               </div>
             </div>

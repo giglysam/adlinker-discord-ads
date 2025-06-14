@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -7,14 +7,23 @@ import { LogOut, Settings, DollarSign, Plus, Monitor } from 'lucide-react';
 
 const Navbar = () => {
   const { user, logout, refreshUser } = useAuth();
+  const [lastBalanceUpdate, setLastBalanceUpdate] = useState(Date.now());
 
   // Enhanced real-time balance updates for navbar
   useEffect(() => {
     if (!user?.id || user.role !== 'shower' || !refreshUser) return;
 
+    console.log('Setting up navbar balance tracking for user:', user.id);
+
+    // Frequent balance refresh for navbar
+    const navbarBalanceInterval = setInterval(() => {
+      refreshUser();
+      setLastBalanceUpdate(Date.now());
+    }, 2000); // Every 2 seconds for navbar
+
     // Set up real-time subscription for user balance changes in navbar
     const userChannel = supabase
-      .channel('navbar_user_balance')
+      .channel('navbar_balance_updates')
       .on('postgres_changes',
         { 
           event: 'UPDATE', 
@@ -24,13 +33,43 @@ const Navbar = () => {
         },
         (payload) => {
           console.log('Navbar: User balance updated:', payload.new);
+          console.log('Navbar: Balance change from', payload.old?.balance, 'to', payload.new?.balance);
           refreshUser();
+          setLastBalanceUpdate(Date.now());
+        }
+      )
+      .subscribe();
+
+    // Subscribe to ad deliveries for immediate balance updates
+    const deliveryChannel = supabase
+      .channel('navbar_delivery_updates')
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'ad_deliveries' },
+        async (payload) => {
+          console.log('Navbar: New ad delivery detected:', payload.new);
+          
+          const { data: webhook } = await supabase
+            .from('webhooks')
+            .select('user_id')
+            .eq('id', payload.new.webhook_id)
+            .eq('user_id', user.id)
+            .single();
+            
+          if (webhook) {
+            console.log('Navbar: Ad delivery for current user, refreshing balance');
+            setTimeout(() => {
+              refreshUser();
+              setLastBalanceUpdate(Date.now());
+            }, 300);
+          }
         }
       )
       .subscribe();
 
     return () => {
+      clearInterval(navbarBalanceInterval);
       supabase.removeChannel(userChannel);
+      supabase.removeChannel(deliveryChannel);
     };
   }, [user?.id, user?.role, refreshUser]);
 
@@ -80,7 +119,7 @@ const Navbar = () => {
               <div className="flex items-center space-x-2 bg-green-900/30 px-3 py-1 rounded-full">
                 <DollarSign className="w-4 h-4 text-green-400" />
                 <span className="text-green-400 font-medium">${user.balance.toFixed(5)}</span>
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" title="Live balance updates"></div>
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" title="Live balance updates every 2 seconds"></div>
               </div>
             )}
             <div className="text-gray-300">
