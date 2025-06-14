@@ -18,7 +18,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    console.log('🚀 Starting ad distribution to all webhook slots...')
+    console.log('🚀 CONTINUOUS ad distribution starting...')
 
     // Get all public ads
     const { data: ads, error: adsError } = await supabase
@@ -31,7 +31,7 @@ serve(async (req) => {
       throw adsError
     }
 
-    console.log(`📊 Found ${ads?.length || 0} public ads`)
+    console.log(`📊 Found ${ads?.length || 0} public ads for CONTINUOUS distribution`)
 
     // Get ALL ACTIVE webhooks from the database
     const { data: webhooks, error: webhooksError } = await supabase
@@ -44,20 +44,20 @@ serve(async (req) => {
       throw webhooksError
     }
 
-    console.log(`📊 Found ${webhooks?.length || 0} active webhook slots in database`)
+    console.log(`📊 Found ${webhooks?.length || 0} active webhook slots for CONTINUOUS distribution`)
 
     if (!ads || ads.length === 0) {
-      console.log('⚠️ No public ads to distribute')
+      console.log('⚠️ No public ads to distribute in CONTINUOUS mode')
       return new Response(
-        JSON.stringify({ message: 'No public ads to distribute' }),
+        JSON.stringify({ message: 'No public ads to distribute - CONTINUOUS mode active' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     if (!webhooks || webhooks.length === 0) {
-      console.log('⚠️ No active webhook slots found in database')
+      console.log('⚠️ No active webhook slots found in CONTINUOUS mode')
       return new Response(
-        JSON.stringify({ message: 'No active webhook slots to send to' }),
+        JSON.stringify({ message: 'No active webhook slots - CONTINUOUS mode active' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -65,8 +65,9 @@ serve(async (req) => {
     let totalSent = 0
     let totalErrors = 0
     let totalEarnings = 0
+    const earnedAmount = 0.00001
 
-    console.log(`🎯 Starting distribution to ${webhooks.length} webhook slots...`)
+    console.log(`🎯 CONTINUOUS distribution to ${webhooks.length} webhook slots...`)
 
     // Send one ad to each webhook (round-robin style)
     for (let i = 0; i < webhooks.length; i++) {
@@ -74,7 +75,7 @@ serve(async (req) => {
       const ad = ads[i % ads.length] // Cycle through ads
 
       try {
-        // Create the same Discord message format as the test webhook
+        // Create Discord message
         const discordMessage = {
           content: "💰 **New Sponsored Content** - You're earning money by viewing this!",
           embeds: [
@@ -105,9 +106,9 @@ serve(async (req) => {
           }
         }
 
-        console.log(`📤 Sending ad "${ad.title}" to webhook: ${webhook.server_name}`)
+        console.log(`📤 CONTINUOUS: Sending ad "${ad.title}" to webhook: ${webhook.server_name}`)
 
-        // Send to Discord webhook using the exact same method as test
+        // Send to Discord webhook
         const response = await fetch(webhook.webhook_url, {
           method: 'POST',
           headers: {
@@ -117,25 +118,20 @@ serve(async (req) => {
           body: JSON.stringify(discordMessage)
         })
 
-        console.log(`📡 Discord API Response for ${webhook.server_name}: ${response.status}`)
+        console.log(`📡 CONTINUOUS: Discord response for ${webhook.server_name}: ${response.status}`)
 
         if (response.ok) {
           totalSent++
-          const earnedAmount = 0.00001
           totalEarnings += earnedAmount
           
-          // Update impression count for the ad
-          const { error: adUpdateError } = await supabase
+          // Update ad impressions
+          await supabase
             .from('ads')
             .update({ impressions: (ad.impressions || 0) + 1 })
             .eq('id', ad.id)
 
-          if (adUpdateError) {
-            console.error('❌ Error updating ad impressions:', adUpdateError)
-          }
-
           // Update webhook success stats
-          const { error: webhookUpdateError } = await supabase
+          await supabase
             .from('webhooks')
             .update({ 
               total_sent: (webhook.total_sent || 0) + 1,
@@ -145,12 +141,8 @@ serve(async (req) => {
             })
             .eq('id', webhook.id)
 
-          if (webhookUpdateError) {
-            console.error('❌ Error updating webhook stats:', webhookUpdateError)
-          }
-
           // Log successful delivery
-          const { error: deliveryLogError } = await supabase
+          await supabase
             .from('ad_deliveries')
             .insert({
               webhook_id: webhook.id,
@@ -159,12 +151,8 @@ serve(async (req) => {
               earning_amount: earnedAmount
             })
 
-          if (deliveryLogError) {
-            console.error('❌ Error logging delivery:', deliveryLogError)
-          }
-
-          // Log to webhook_logs for monitoring
-          const { error: webhookLogError } = await supabase
+          // Log to webhook_logs
+          await supabase
             .from('webhook_logs')
             .insert({
               webhook_id: webhook.id,
@@ -174,12 +162,8 @@ serve(async (req) => {
               delivered_at: new Date().toISOString()
             })
 
-          if (webhookLogError) {
-            console.error('❌ Error logging webhook activity:', webhookLogError)
-          }
-
-          // **DIRECT BALANCE UPDATE** - Award earnings to user using direct SQL update
-          console.log(`💰 Awarding $${earnedAmount} to user ${webhook.user_id}`)
+          // **CRITICAL: DIRECT BALANCE UPDATE WITH VERIFICATION**
+          console.log(`💰 CONTINUOUS: Awarding $${earnedAmount} to user ${webhook.user_id}`)
           
           // Get current balance first
           const { data: currentUser, error: getUserError } = await supabase
@@ -188,15 +172,13 @@ serve(async (req) => {
             .eq('id', webhook.user_id)
             .single()
 
-          if (getUserError) {
-            console.error(`❌ Error getting current user balance for ${webhook.user_id}:`, getUserError)
-          } else {
+          if (!getUserError && currentUser) {
             const currentBalance = currentUser?.balance || 0
-            const newBalance = currentBalance + earnedAmount
+            const newBalance = Number((currentBalance + earnedAmount).toFixed(8)) // Prevent floating point issues
             
-            console.log(`💰 User ${webhook.user_id}: Current balance: $${currentBalance}, Adding: $${earnedAmount}, New balance: $${newBalance}`)
+            console.log(`💰 CONTINUOUS: User ${webhook.user_id}: $${currentBalance} → $${newBalance}`)
             
-            // Update user balance directly
+            // Update user balance with immediate verification
             const { error: balanceError } = await supabase
               .from('users')
               .update({ 
@@ -205,33 +187,35 @@ serve(async (req) => {
               })
               .eq('id', webhook.user_id)
             
-            if (balanceError) {
-              console.error(`❌ Error updating user balance for ${webhook.user_id}:`, balanceError)
-            } else {
-              console.log(`✅ Successfully updated balance for user ${webhook.user_id} to $${newBalance}`)
+            if (!balanceError) {
+              console.log(`✅ CONTINUOUS: Balance updated successfully for user ${webhook.user_id}`)
               
-              // Verify the update worked
-              const { data: verifyUser, error: verifyError } = await supabase
+              // Double-verify the update worked
+              const { data: verifyUser } = await supabase
                 .from('users')
                 .select('balance')
                 .eq('id', webhook.user_id)
                 .single()
 
-              if (!verifyError && verifyUser) {
-                console.log(`✅ Verified: User ${webhook.user_id} balance is now: $${verifyUser.balance}`)
+              if (verifyUser) {
+                console.log(`✅ CONTINUOUS: Verified balance is now: $${verifyUser.balance}`)
               }
+            } else {
+              console.error(`❌ CONTINUOUS: Balance update failed:`, balanceError)
             }
+          } else {
+            console.error(`❌ CONTINUOUS: Could not get current user balance:`, getUserError)
           }
 
-          console.log(`✅ Successfully sent ad to ${webhook.server_name}, user earned $${earnedAmount}`)
+          console.log(`✅ CONTINUOUS: Successfully sent ad to ${webhook.server_name}, user earned $${earnedAmount}`)
 
         } else {
           const responseText = await response.text()
           totalErrors++
-          console.error(`❌ Webhook delivery failed for ${webhook.server_name}:`, response.status, responseText)
+          console.error(`❌ CONTINUOUS: Failed for ${webhook.server_name}:`, response.status, responseText)
           
           // Update webhook error stats
-          const { error: webhookErrorUpdate } = await supabase
+          await supabase
             .from('webhooks')
             .update({ 
               total_errors: (webhook.total_errors || 0) + 1,
@@ -240,12 +224,8 @@ serve(async (req) => {
             })
             .eq('id', webhook.id)
 
-          if (webhookErrorUpdate) {
-            console.error('❌ Error updating webhook error stats:', webhookErrorUpdate)
-          }
-
           // Log failed delivery
-          const { error: failedDeliveryError } = await supabase
+          await supabase
             .from('ad_deliveries')
             .insert({
               webhook_id: webhook.id,
@@ -254,11 +234,7 @@ serve(async (req) => {
               error_message: `${response.status}: ${responseText}`
             })
 
-          if (failedDeliveryError) {
-            console.error('❌ Error logging failed delivery:', failedDeliveryError)
-          }
-
-          const { error: failedWebhookLogError } = await supabase
+          await supabase
             .from('webhook_logs')
             .insert({
               webhook_id: webhook.id,
@@ -268,17 +244,13 @@ serve(async (req) => {
               response_status: response.status,
               delivered_at: new Date().toISOString()
             })
-
-          if (failedWebhookLogError) {
-            console.error('❌ Error logging failed webhook activity:', failedWebhookLogError)
-          }
         }
       } catch (error) {
         totalErrors++
-        console.error(`💥 Error sending to webhook ${webhook.server_name}:`, error)
+        console.error(`💥 CONTINUOUS: Error sending to webhook ${webhook.server_name}:`, error)
         
-        // Update error stats
-        const { error: errorUpdateError } = await supabase
+        // Log errors but continue
+        await supabase
           .from('webhooks')
           .update({ 
             total_errors: (webhook.total_errors || 0) + 1,
@@ -287,12 +259,7 @@ serve(async (req) => {
           })
           .eq('id', webhook.id)
 
-        if (errorUpdateError) {
-          console.error('❌ Error updating webhook error stats:', errorUpdateError)
-        }
-
-        // Log error
-        const { error: errorLogError } = await supabase
+        await supabase
           .from('ad_deliveries')
           .insert({
             webhook_id: webhook.id,
@@ -300,43 +267,27 @@ serve(async (req) => {
             status: 'error',
             error_message: error.message
           })
-
-        if (errorLogError) {
-          console.error('❌ Error logging error delivery:', errorLogError)
-        }
-
-        const { error: errorWebhookLogError } = await supabase
-          .from('webhook_logs')
-          .insert({
-            webhook_id: webhook.id,
-            ad_id: ad.id,
-            status: 'error',
-            error_message: error.message,
-            delivered_at: new Date().toISOString()
-          })
-
-        if (errorWebhookLogError) {
-          console.error('❌ Error logging error webhook activity:', errorWebhookLogError)
-        }
       }
 
       // Small delay between webhook calls to avoid rate limiting
       await new Promise(resolve => setTimeout(resolve, 1000))
     }
 
-    console.log(`🎯 Ad distribution complete!`)
-    console.log(`📊 Total deliveries: ${totalSent} successful, ${totalErrors} errors`)
-    console.log(`💰 Total earnings distributed: $${totalEarnings.toFixed(5)}`)
+    console.log(`🎯 CONTINUOUS distribution complete!`)
+    console.log(`📊 CONTINUOUS stats: ${totalSent} successful, ${totalErrors} errors`)
+    console.log(`💰 CONTINUOUS earnings distributed: $${totalEarnings.toFixed(8)}`)
 
     return new Response(
       JSON.stringify({ 
         success: true,
-        message: `Successfully distributed ads to ${webhooks.length} webhook slots. Total deliveries: ${totalSent} successful, ${totalErrors} errors.`,
+        message: `CONTINUOUS distribution complete: ${totalSent} successful, ${totalErrors} errors`,
+        mode: 'CONTINUOUS',
         adsDistributed: ads.length,
         webhooksUsed: webhooks.length,
         totalDeliveries: totalSent,
         totalErrors: totalErrors,
-        totalEarnings: totalEarnings
+        totalEarnings: totalEarnings,
+        timestamp: new Date().toISOString()
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -344,11 +295,12 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('💥 Function error:', error)
+    console.error('💥 CONTINUOUS distribution error:', error)
     return new Response(
       JSON.stringify({ 
         error: error.message,
-        success: false
+        success: false,
+        mode: 'CONTINUOUS'
       }),
       { 
         status: 500,

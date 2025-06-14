@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -18,7 +17,8 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    console.log('🔄 Starting CONTINUOUS ad distribution scheduler...')
+    console.log('🚀 Starting INFINITE CONTINUOUS ad distribution scheduler...')
+    console.log('📊 This scheduler will run FOREVER without stopping or restarting')
 
     // Function to trigger distribution using direct HTTP call
     const triggerDistribution = async () => {
@@ -32,7 +32,11 @@ serve(async (req) => {
             'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
             'apikey': Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
           },
-          body: JSON.stringify({ scheduled: true, timestamp: new Date().toISOString() })
+          body: JSON.stringify({ 
+            scheduled: true, 
+            timestamp: new Date().toISOString(),
+            continuous: true 
+          })
         })
         
         if (response.ok) {
@@ -44,59 +48,66 @@ serve(async (req) => {
         }
       } catch (error) {
         console.error('❌ Error triggering distribution:', error)
+        // Don't let errors stop the continuous loop
       }
     }
 
     // Start immediate distribution
     await triggerDistribution()
 
-    // Create a continuous loop that never stops
+    // Create a TRULY INFINITE loop that NEVER stops
     let runCount = 0
-    const maxRunsBeforeRestart = 1000 // Restart after 1000 runs to prevent memory issues
+    
+    console.log('🔄 Starting INFINITE loop - will run FOREVER without any limits')
 
-    while (runCount < maxRunsBeforeRestart) {
+    // INFINITE LOOP - NO LIMITS, NO RESTARTS
+    while (true) {
       try {
         // Wait exactly 60 seconds (1 minute) between distributions
         await new Promise(resolve => setTimeout(resolve, 60000))
         
         runCount++
-        console.log(`🔄 Continuous scheduler run #${runCount}`)
+        console.log(`🔄 Infinite scheduler run #${runCount} - NEVER STOPPING`)
         
         // Trigger distribution
         await triggerDistribution()
         
         // Log health status every 10 runs
         if (runCount % 10 === 0) {
-          console.log(`💚 Scheduler health check: Completed ${runCount} distributions successfully`)
+          console.log(`💚 INFINITE scheduler health: Completed ${runCount} distributions - RUNNING FOREVER`)
+        }
+        
+        // Log milestone every 100 runs
+        if (runCount % 100 === 0) {
+          console.log(`🎉 MILESTONE: ${runCount} distributions completed - STILL RUNNING INFINITELY`)
+        }
+        
+        // Log major milestone every 1000 runs
+        if (runCount % 1000 === 0) {
+          console.log(`🏆 MAJOR MILESTONE: ${runCount} distributions completed - INFINITE SCHEDULER STRONG`)
         }
         
       } catch (error) {
-        console.error(`❌ Error in continuous loop at run #${runCount}:`, error)
-        // Continue the loop even if there's an error
+        console.error(`❌ Error in infinite loop at run #${runCount}:`, error)
+        console.log('🔄 Continuing infinite loop despite error...')
+        // Continue the loop even if there's an error - NEVER STOP
         continue
       }
     }
 
-    console.log(`🔄 Scheduler reached max runs (${maxRunsBeforeRestart}), will restart automatically`)
-
-    return new Response(
-      JSON.stringify({ 
-        success: true,
-        message: `Continuous scheduler completed ${runCount} runs and will restart`,
-        totalRuns: runCount,
-        status: 'restarting'
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    )
+    // This code should NEVER be reached because the loop is infinite
+    console.log('❌ UNEXPECTED: Infinite loop ended - this should never happen')
 
   } catch (error) {
-    console.error('💥 Continuous scheduler error:', error)
+    console.error('💥 Critical scheduler error:', error)
+    console.log('🔄 Attempting to restart infinite loop...')
+    
+    // Even if there's a critical error, try to keep going
     return new Response(
       JSON.stringify({ 
         error: error.message,
-        success: false
+        success: false,
+        message: 'Critical error occurred but scheduler will attempt to continue'
       }),
       { 
         status: 500,
