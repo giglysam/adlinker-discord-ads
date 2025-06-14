@@ -15,14 +15,14 @@ import WebhookMonitor from './WebhookMonitor';
 const AdShowerDashboard = () => {
   const { user, refreshUser } = useAuth();
 
-  // Enhanced real-time balance updates
+  // Enhanced real-time balance updates with more frequent refresh
   useEffect(() => {
     if (!user?.id || !refreshUser) return;
 
-    // Refresh user data every 15 seconds for more frequent updates
+    // Refresh user data every 5 seconds for immediate updates
     const balanceInterval = setInterval(() => {
       refreshUser();
-    }, 15000);
+    }, 5000);
 
     // Set up real-time subscription for user balance changes
     const userChannel = supabase
@@ -35,8 +35,8 @@ const AdShowerDashboard = () => {
           filter: `id=eq.${user.id}`
         },
         (payload) => {
-          console.log('User balance updated:', payload.new);
-          // Refresh user data when balance changes
+          console.log('Real-time user balance updated:', payload.new);
+          // Immediately refresh user data when balance changes
           refreshUser();
         }
       )
@@ -59,11 +59,9 @@ const AdShowerDashboard = () => {
             .single();
             
           if (webhook) {
-            console.log('Ad delivery for current user, refreshing balance');
-            // Small delay to ensure database has been updated
-            setTimeout(() => {
-              refreshUser();
-            }, 1000);
+            console.log('Ad delivery for current user, refreshing balance immediately');
+            // Immediate refresh when user earns money
+            refreshUser();
           }
         }
       )
@@ -95,7 +93,10 @@ const AdShowerDashboard = () => {
                 <div>
                   <p className="text-gray-400 text-sm">Current Balance</p>
                   <p className="text-2xl font-bold text-green-400">${(user?.balance || 0).toFixed(5)}</p>
-                  <p className="text-xs text-gray-500">Updates in real-time</p>
+                  <div className="flex items-center space-x-2 mt-1">
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                    <p className="text-xs text-green-400">Live updates every 5 seconds</p>
+                  </div>
                 </div>
                 <div className="w-12 h-12 bg-green-600/20 rounded-lg flex items-center justify-center">
                   <DollarSign className="w-6 h-6 text-green-400" />
@@ -157,6 +158,21 @@ const AdShowerDashboard = () => {
                   <p className="text-white font-mono">+961 71831770</p>
                   <p className="text-gray-400 text-xs mt-1">WhatsApp available</p>
                 </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Live Distribution Status */}
+        <Card className="bg-green-900/20 border-green-500/50">
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-4">
+              <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+              <div>
+                <h3 className="text-green-400 font-semibold">Live Ad Distribution System</h3>
+                <p className="text-gray-300 text-sm">
+                  Ads are being sent to your webhooks every minute, 24/7. Earnings are added to your balance instantly.
+                </p>
               </div>
             </div>
           </CardContent>

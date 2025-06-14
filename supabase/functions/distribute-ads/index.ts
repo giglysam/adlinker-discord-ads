@@ -178,43 +178,49 @@ serve(async (req) => {
             console.error('❌ Error logging webhook activity:', webhookLogError)
           }
 
-          // **ENHANCED BALANCE UPDATE** - Award earnings to user using the database function
+          // **DIRECT BALANCE UPDATE** - Award earnings to user using direct SQL update
           console.log(`💰 Awarding $${earnedAmount} to user ${webhook.user_id}`)
           
-          const { data: balanceResult, error: balanceError } = await supabase.rpc('increment_user_balance', {
-            user_id: webhook.user_id,
-            amount: earnedAmount
-          })
-
-          if (balanceError) {
-            console.error(`❌ Error updating user balance for ${webhook.user_id}:`, balanceError)
-            // Try a direct update as fallback
-            const { error: fallbackError } = await supabase
-              .from('users')
-              .update({ 
-                balance: supabase.sql`COALESCE(balance, 0) + ${earnedAmount}`,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', webhook.user_id)
-            
-            if (fallbackError) {
-              console.error(`❌ Fallback balance update also failed for ${webhook.user_id}:`, fallbackError)
-            } else {
-              console.log(`✅ Fallback balance update successful for user ${webhook.user_id}`)
-            }
-          } else {
-            console.log(`✅ Successfully updated balance for user ${webhook.user_id}`)
-          }
-
-          // Verify balance was updated
-          const { data: updatedUser, error: userCheckError } = await supabase
+          // Get current balance first
+          const { data: currentUser, error: getUserError } = await supabase
             .from('users')
             .select('balance')
             .eq('id', webhook.user_id)
             .single()
 
-          if (!userCheckError && updatedUser) {
-            console.log(`✅ Verified: User ${webhook.user_id} new balance: $${updatedUser.balance}`)
+          if (getUserError) {
+            console.error(`❌ Error getting current user balance for ${webhook.user_id}:`, getUserError)
+          } else {
+            const currentBalance = currentUser?.balance || 0
+            const newBalance = currentBalance + earnedAmount
+            
+            console.log(`💰 User ${webhook.user_id}: Current balance: $${currentBalance}, Adding: $${earnedAmount}, New balance: $${newBalance}`)
+            
+            // Update user balance directly
+            const { error: balanceError } = await supabase
+              .from('users')
+              .update({ 
+                balance: newBalance,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', webhook.user_id)
+            
+            if (balanceError) {
+              console.error(`❌ Error updating user balance for ${webhook.user_id}:`, balanceError)
+            } else {
+              console.log(`✅ Successfully updated balance for user ${webhook.user_id} to $${newBalance}`)
+              
+              // Verify the update worked
+              const { data: verifyUser, error: verifyError } = await supabase
+                .from('users')
+                .select('balance')
+                .eq('id', webhook.user_id)
+                .single()
+
+              if (!verifyError && verifyUser) {
+                console.log(`✅ Verified: User ${webhook.user_id} balance is now: $${verifyUser.balance}`)
+              }
+            }
           }
 
           console.log(`✅ Successfully sent ad to ${webhook.server_name}, user earned $${earnedAmount}`)
