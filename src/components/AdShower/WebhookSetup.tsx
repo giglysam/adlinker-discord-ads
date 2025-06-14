@@ -235,9 +235,7 @@ const WebhookSetup = () => {
       setLoading(false);
     }
   };
-      setTimeout(async () => {
-        await startAutomaticDistribution();
-      }, 60000);
+
   const startAutomaticDistribution = async () => {
 
     try {
