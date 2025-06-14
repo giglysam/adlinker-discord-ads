@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
@@ -18,6 +17,7 @@ interface AuthContextType {
   signup: (username: string, email: string, password: string, role: 'advertiser' | 'shower') => Promise<boolean>;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
+  refreshUser: () => Promise<void>;
   loading: boolean;
 }
 
@@ -130,6 +130,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Error in loadUserProfile:', error);
       setLoading(false);
+    }
+  };
+
+  const refreshUser = async () => {
+    try {
+      const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+      if (supabaseUser) {
+        await loadUserProfile(supabaseUser);
+      }
+    } catch (error) {
+      console.error('Error refreshing user:', error);
     }
   };
 
@@ -265,7 +276,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, signup, logout, updateUser, loading }}>
+    <AuthContext.Provider value={{ user, login, signup, logout, updateUser, refreshUser, loading }}>
       {children}
     </AuthContext.Provider>
   );

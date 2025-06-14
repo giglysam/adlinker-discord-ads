@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -101,7 +100,8 @@ const AdminDashboard = () => {
 
     const adsWithUsernames = data.map(ad => ({
       ...ad,
-      username: ad.users?.username || 'Unknown'
+      username: ad.users?.username || 'Unknown',
+      status: ad.status as 'pending' | 'public' | 'stopped'
     }));
 
     setAds(adsWithUsernames);
@@ -142,6 +142,7 @@ const AdminDashboard = () => {
 
     const enrichedUsers = usersData.map(user => ({
       ...user,
+      role: user.role as 'advertiser' | 'shower' | 'admin',
       adsCreated: user.role === 'advertiser' ? adCountsByUser[user.id] || 0 : undefined,
       webhooks: user.role === 'shower' ? webhookCountsByUser[user.id] || 0 : undefined,
     }));
