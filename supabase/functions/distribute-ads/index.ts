@@ -18,46 +18,60 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    console.log('🚀 CONTINUOUS ad distribution starting...')
+    const requestBody = await req.json().catch(() => ({}))
+    const isAutomated = requestBody.automated || requestBody.continuous || requestBody.scheduled
 
-    // Get all public ads
+    console.log('🚀 AUTOMATIC ad distribution starting...', { 
+      automated: isAutomated, 
+      timestamp: new Date().toISOString() 
+    })
+
+    // Get all public ads with enhanced logging
     const { data: ads, error: adsError } = await supabase
       .from('ads')
       .select('*')
       .eq('status', 'public')
 
     if (adsError) {
-      console.error('❌ Error fetching ads:', adsError)
+      console.error('❌ AUTOMATIC: Error fetching ads:', adsError)
       throw adsError
     }
 
-    console.log(`📊 Found ${ads?.length || 0} public ads for CONTINUOUS distribution`)
+    console.log(`📊 AUTOMATIC: Found ${ads?.length || 0} public ads for distribution`)
 
-    // Get ALL ACTIVE webhooks from the database
+    // Get ALL ACTIVE webhooks with enhanced logging
     const { data: webhooks, error: webhooksError } = await supabase
       .from('webhooks')
       .select('*')
       .eq('is_active', true)
 
     if (webhooksError) {
-      console.error('❌ Error fetching webhook slots:', webhooksError)
+      console.error('❌ AUTOMATIC: Error fetching webhooks:', webhooksError)
       throw webhooksError
     }
 
-    console.log(`📊 Found ${webhooks?.length || 0} active webhook slots for CONTINUOUS distribution`)
+    console.log(`📊 AUTOMATIC: Found ${webhooks?.length || 0} active webhooks for distribution`)
 
     if (!ads || ads.length === 0) {
-      console.log('⚠️ No public ads to distribute in CONTINUOUS mode')
+      console.log('⚠️ AUTOMATIC: No public ads to distribute')
       return new Response(
-        JSON.stringify({ message: 'No public ads to distribute - CONTINUOUS mode active' }),
+        JSON.stringify({ 
+          message: 'No public ads available for automatic distribution',
+          automated: isAutomated,
+          timestamp: new Date().toISOString()
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     if (!webhooks || webhooks.length === 0) {
-      console.log('⚠️ No active webhook slots found in CONTINUOUS mode')
+      console.log('⚠️ AUTOMATIC: No active webhooks found')
       return new Response(
-        JSON.stringify({ message: 'No active webhook slots - CONTINUOUS mode active' }),
+        JSON.stringify({ 
+          message: 'No active webhooks for automatic distribution',
+          automated: isAutomated,
+          timestamp: new Date().toISOString()
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -67,63 +81,106 @@ serve(async (req) => {
     let totalEarnings = 0
     const earnedAmount = 0.00001
 
-    console.log(`🎯 CONTINUOUS distribution to ${webhooks.length} webhook slots...`)
+    console.log(`🎯 AUTOMATIC: Starting distribution to ${webhooks.length} webhooks...`)
 
-    // Send one ad to each webhook (round-robin style)
+    // Enhanced automatic distribution process
     for (let i = 0; i < webhooks.length; i++) {
       const webhook = webhooks[i]
       const ad = ads[i % ads.length] // Cycle through ads
 
       try {
-        // Create Discord message
+        // Create enhanced Discord message for automatic system
         const discordMessage = {
-          content: "💰 **New Sponsored Content** - You're earning money by viewing this!",
+          content: "💰 **AUTOMATIC Sponsored Content** - Earning money automatically!",
           embeds: [
             {
-              title: ad.title || "Sponsored Content",
-              description: ad.text || "Check out this amazing offer!",
+              title: ad.title || "Automatic Sponsored Content",
+              description: ad.text || "Check out this automatic offer!",
               url: ad.url || "https://discord.com",
               color: 5865242,
               fields: [
                 {
-                  name: "💰 Earning Opportunity",
-                  value: "You earn money for every ad view!",
+                  name: "💰 Automatic Earning System",
+                  value: "You earn money automatically for every ad view!",
                   inline: false
+                },
+                {
+                  name: "🤖 System Status",
+                  value: "Fully Automated • 24/7 Operation",
+                  inline: true
                 }
               ],
               footer: {
-                text: "💰 Sponsored by DiscordAdNet - You're earning money!"
+                text: "💰 Automatic DiscordAdNet - Earning money automatically!"
               },
               timestamp: new Date().toISOString()
             }
           ]
         }
 
-        // Add image if available
         if (ad.image_url) {
-          discordMessage.embeds[0].image = {
-            url: ad.image_url
-          }
+          discordMessage.embeds[0].image = { url: ad.image_url }
         }
 
-        console.log(`📤 CONTINUOUS: Sending ad "${ad.title}" to webhook: ${webhook.server_name}`)
+        console.log(`📤 AUTOMATIC: Sending "${ad.title}" to ${webhook.server_name}`)
 
-        // Send to Discord webhook
+        // Send to Discord webhook with enhanced error handling
         const response = await fetch(webhook.webhook_url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'User-Agent': 'DiscordAdNet-Bot/1.0'
+            'User-Agent': 'DiscordAdNet-AutoBot/2.0'
           },
           body: JSON.stringify(discordMessage)
         })
 
-        console.log(`📡 CONTINUOUS: Discord response for ${webhook.server_name}: ${response.status}`)
+        console.log(`📡 AUTOMATIC: Discord response for ${webhook.server_name}: ${response.status}`)
 
         if (response.ok) {
           totalSent++
           totalEarnings += earnedAmount
           
+          console.log(`💰 AUTOMATIC: Processing earnings for user ${webhook.user_id}`)
+          
+          // DIRECT balance update with comprehensive logging
+          const { data: currentUser, error: getUserError } = await supabase
+            .from('users')
+            .select('balance')
+            .eq('id', webhook.user_id)
+            .single()
+
+          if (!getUserError && currentUser) {
+            const currentBalance = currentUser.balance || 0
+            const newBalance = Number((currentBalance + earnedAmount).toFixed(8))
+            
+            console.log(`💰 AUTOMATIC: User ${webhook.user_id}: $${currentBalance} → $${newBalance}`)
+            
+            const { error: balanceError } = await supabase
+              .from('users')
+              .update({ 
+                balance: newBalance,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', webhook.user_id)
+            
+            if (!balanceError) {
+              console.log(`✅ AUTOMATIC: Balance updated successfully for user ${webhook.user_id}`)
+              
+              // Verification step
+              const { data: verifyUser } = await supabase
+                .from('users')
+                .select('balance')
+                .eq('id', webhook.user_id)
+                .single()
+
+              if (verifyUser) {
+                console.log(`✅ AUTOMATIC: Verified new balance: $${verifyUser.balance}`)
+              }
+            } else {
+              console.error(`❌ AUTOMATIC: Balance update failed:`, balanceError)
+            }
+          }
+
           // Update ad impressions
           await supabase
             .from('ads')
@@ -141,7 +198,7 @@ serve(async (req) => {
             })
             .eq('id', webhook.id)
 
-          // Log successful delivery
+          // Log successful automatic delivery
           await supabase
             .from('ad_deliveries')
             .insert({
@@ -151,7 +208,6 @@ serve(async (req) => {
               earning_amount: earnedAmount
             })
 
-          // Log to webhook_logs
           await supabase
             .from('webhook_logs')
             .insert({
@@ -162,59 +218,14 @@ serve(async (req) => {
               delivered_at: new Date().toISOString()
             })
 
-          // **CRITICAL: DIRECT BALANCE UPDATE WITH VERIFICATION**
-          console.log(`💰 CONTINUOUS: Awarding $${earnedAmount} to user ${webhook.user_id}`)
-          
-          // Get current balance first
-          const { data: currentUser, error: getUserError } = await supabase
-            .from('users')
-            .select('balance')
-            .eq('id', webhook.user_id)
-            .single()
-
-          if (!getUserError && currentUser) {
-            const currentBalance = currentUser?.balance || 0
-            const newBalance = Number((currentBalance + earnedAmount).toFixed(8)) // Prevent floating point issues
-            
-            console.log(`💰 CONTINUOUS: User ${webhook.user_id}: $${currentBalance} → $${newBalance}`)
-            
-            // Update user balance with immediate verification
-            const { error: balanceError } = await supabase
-              .from('users')
-              .update({ 
-                balance: newBalance,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', webhook.user_id)
-            
-            if (!balanceError) {
-              console.log(`✅ CONTINUOUS: Balance updated successfully for user ${webhook.user_id}`)
-              
-              // Double-verify the update worked
-              const { data: verifyUser } = await supabase
-                .from('users')
-                .select('balance')
-                .eq('id', webhook.user_id)
-                .single()
-
-              if (verifyUser) {
-                console.log(`✅ CONTINUOUS: Verified balance is now: $${verifyUser.balance}`)
-              }
-            } else {
-              console.error(`❌ CONTINUOUS: Balance update failed:`, balanceError)
-            }
-          } else {
-            console.error(`❌ CONTINUOUS: Could not get current user balance:`, getUserError)
-          }
-
-          console.log(`✅ CONTINUOUS: Successfully sent ad to ${webhook.server_name}, user earned $${earnedAmount}`)
+          console.log(`✅ AUTOMATIC: Success for ${webhook.server_name}, earned $${earnedAmount}`)
 
         } else {
           const responseText = await response.text()
           totalErrors++
-          console.error(`❌ CONTINUOUS: Failed for ${webhook.server_name}:`, response.status, responseText)
+          console.error(`❌ AUTOMATIC: Failed for ${webhook.server_name}:`, response.status, responseText)
           
-          // Update webhook error stats
+          // Log errors with automatic recovery
           await supabase
             .from('webhooks')
             .update({ 
@@ -224,7 +235,6 @@ serve(async (req) => {
             })
             .eq('id', webhook.id)
 
-          // Log failed delivery
           await supabase
             .from('ad_deliveries')
             .insert({
@@ -247,7 +257,7 @@ serve(async (req) => {
         }
       } catch (error) {
         totalErrors++
-        console.error(`💥 CONTINUOUS: Error sending to webhook ${webhook.server_name}:`, error)
+        console.error(`💥 AUTOMATIC: Exception for webhook ${webhook.server_name}:`, error)
         
         // Log errors but continue
         await supabase
@@ -269,38 +279,44 @@ serve(async (req) => {
           })
       }
 
-      // Small delay between webhook calls to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      // Automatic pacing - small delay between sends
+      await new Promise(resolve => setTimeout(resolve, 800))
     }
 
-    console.log(`🎯 CONTINUOUS distribution complete!`)
-    console.log(`📊 CONTINUOUS stats: ${totalSent} successful, ${totalErrors} errors`)
-    console.log(`💰 CONTINUOUS earnings distributed: $${totalEarnings.toFixed(8)}`)
-
-    return new Response(
-      JSON.stringify({ 
-        success: true,
-        message: `CONTINUOUS distribution complete: ${totalSent} successful, ${totalErrors} errors`,
-        mode: 'CONTINUOUS',
+    const summary = {
+      success: true,
+      message: `AUTOMATIC distribution complete: ${totalSent} successful, ${totalErrors} errors`,
+      automated: isAutomated,
+      mode: 'FULLY_AUTOMATIC',
+      timestamp: new Date().toISOString(),
+      stats: {
         adsDistributed: ads.length,
         webhooksUsed: webhooks.length,
         totalDeliveries: totalSent,
         totalErrors: totalErrors,
-        totalEarnings: totalEarnings,
-        timestamp: new Date().toISOString()
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        totalEarnings: Number(totalEarnings.toFixed(8)),
+        runType: 'automatic'
       }
+    }
+
+    console.log(`🎯 AUTOMATIC distribution COMPLETE!`)
+    console.log(`📊 AUTOMATIC STATS: ${totalSent} successful, ${totalErrors} errors`)
+    console.log(`💰 AUTOMATIC EARNINGS: $${totalEarnings.toFixed(8)} distributed`)
+
+    return new Response(
+      JSON.stringify(summary),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
-    console.error('💥 CONTINUOUS distribution error:', error)
+    console.error('💥 AUTOMATIC DISTRIBUTION CRITICAL ERROR:', error)
     return new Response(
       JSON.stringify({ 
         error: error.message,
         success: false,
-        mode: 'CONTINUOUS'
+        automated: true,
+        mode: 'AUTOMATIC_ERROR',
+        timestamp: new Date().toISOString()
       }),
       { 
         status: 500,

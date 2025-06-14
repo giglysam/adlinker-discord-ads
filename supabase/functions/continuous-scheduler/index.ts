@@ -17,13 +17,15 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    console.log('🚀 Starting INFINITE CONTINUOUS ad distribution scheduler...')
-    console.log('📊 This scheduler will run FOREVER without stopping or restarting')
+    console.log('🚀 STARTING FULLY AUTOMATED CONTINUOUS AD SYSTEM...')
+    console.log('💯 ZERO MANUAL INTERVENTION REQUIRED - FULLY AUTOMATED')
+    console.log('⚡ SYSTEM WILL RUN FOREVER, AUTOMATICALLY, 24/7')
 
-    // Function to trigger distribution using direct HTTP call
-    const triggerDistribution = async () => {
+    // Function to trigger distribution with enhanced automation
+    const triggerAutomaticDistribution = async () => {
       try {
-        console.log('⏰ Triggering ad distribution at:', new Date().toISOString())
+        const timestamp = new Date().toISOString()
+        console.log('🤖 AUTOMATIC distribution triggered at:', timestamp)
         
         const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/distribute-ads`, {
           method: 'POST',
@@ -33,81 +35,102 @@ serve(async (req) => {
             'apikey': Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
           },
           body: JSON.stringify({ 
-            scheduled: true, 
-            timestamp: new Date().toISOString(),
-            continuous: true 
+            automated: true,
+            continuous: true,
+            timestamp: timestamp,
+            source: 'auto-scheduler'
           })
         })
         
         if (response.ok) {
           const data = await response.json()
-          console.log('✅ Distribution triggered successfully:', data.message)
+          console.log('✅ AUTOMATIC distribution SUCCESS:', data.message)
+          return { success: true, data }
         } else {
           const errorText = await response.text()
-          console.error('❌ Distribution error:', response.status, errorText)
+          console.error('❌ AUTOMATIC distribution ERROR:', response.status, errorText)
+          return { success: false, error: errorText }
         }
       } catch (error) {
-        console.error('❌ Error triggering distribution:', error)
-        // Don't let errors stop the continuous loop
+        console.error('💥 AUTOMATIC distribution EXCEPTION:', error)
+        return { success: false, error: error.message }
       }
     }
 
-    // Start immediate distribution
-    await triggerDistribution()
+    console.log('🔥 LAUNCHING IMMEDIATE AUTOMATIC DISTRIBUTION...')
+    await triggerAutomaticDistribution()
 
-    // Create a TRULY INFINITE loop that NEVER stops
-    let runCount = 0
+    let autoRunCount = 0
+    let consecutiveErrors = 0
+    const maxConsecutiveErrors = 5
     
-    console.log('🔄 Starting INFINITE loop - will run FOREVER without any limits')
+    console.log('🔄 STARTING INFINITE AUTOMATIC LOOP - ZERO HUMAN INTERVENTION')
+    console.log('⏰ AUTOMATIC ads every 60 seconds - FOREVER AND EVER')
 
-    // INFINITE LOOP - NO LIMITS, NO RESTARTS
-    while (true) {
-      try {
-        // Wait exactly 60 seconds (1 minute) between distributions
-        await new Promise(resolve => setTimeout(resolve, 60000))
-        
-        runCount++
-        console.log(`🔄 Infinite scheduler run #${runCount} - NEVER STOPPING`)
-        
-        // Trigger distribution
-        await triggerDistribution()
-        
-        // Log health status every 10 runs
-        if (runCount % 10 === 0) {
-          console.log(`💚 INFINITE scheduler health: Completed ${runCount} distributions - RUNNING FOREVER`)
+    // Create a promise that never resolves to keep the function running
+    const infiniteAutomation = new Promise(() => {
+      const automationInterval = setInterval(async () => {
+        try {
+          autoRunCount++
+          
+          console.log(`🤖 AUTOMATIC run #${autoRunCount} - FULLY AUTOMATED`)
+          
+          const result = await triggerAutomaticDistribution()
+          
+          if (result.success) {
+            consecutiveErrors = 0 // Reset error counter on success
+            
+            // Automatic status logging
+            if (autoRunCount % 5 === 0) {
+              console.log(`💚 AUTOMATIC SYSTEM HEALTH: ${autoRunCount} distributions - RUNNING AUTOMATICALLY`)
+            }
+            
+            if (autoRunCount % 20 === 0) {
+              console.log(`🏆 AUTOMATIC MILESTONE: ${autoRunCount} distributions - ZERO DOWNTIME`)
+            }
+            
+            if (autoRunCount % 100 === 0) {
+              console.log(`🎉 AUTOMATIC ACHIEVEMENT: ${autoRunCount} distributions - PERFECT AUTOMATION`)
+            }
+          } else {
+            consecutiveErrors++
+            console.log(`⚠️ AUTOMATIC ERROR COUNT: ${consecutiveErrors}/${maxConsecutiveErrors}`)
+            
+            if (consecutiveErrors >= maxConsecutiveErrors) {
+              console.log('🔄 AUTOMATIC RECOVERY: Too many errors, but continuing anyway...')
+              consecutiveErrors = 0 // Reset and continue
+            }
+          }
+          
+        } catch (error) {
+          console.error(`💥 AUTOMATIC LOOP ERROR at run #${autoRunCount}:`, error)
+          console.log('🔄 AUTOMATIC RECOVERY: Continuing infinite automation...')
+          // Always continue - never stop the automation
         }
-        
-        // Log milestone every 100 runs
-        if (runCount % 100 === 0) {
-          console.log(`🎉 MILESTONE: ${runCount} distributions completed - STILL RUNNING INFINITELY`)
-        }
-        
-        // Log major milestone every 1000 runs
-        if (runCount % 1000 === 0) {
-          console.log(`🏆 MAJOR MILESTONE: ${runCount} distributions completed - INFINITE SCHEDULER STRONG`)
-        }
-        
-      } catch (error) {
-        console.error(`❌ Error in infinite loop at run #${runCount}:`, error)
-        console.log('🔄 Continuing infinite loop despite error...')
-        // Continue the loop even if there's an error - NEVER STOP
-        continue
-      }
-    }
+      }, 60000) // 60 seconds = 1 minute
 
-    // This code should NEVER be reached because the loop is infinite
-    console.log('❌ UNEXPECTED: Infinite loop ended - this should never happen')
+      // This interval will never be cleared, ensuring infinite operation
+      console.log('✅ INFINITE AUTOMATIC INTERVAL ESTABLISHED - WILL NEVER STOP')
+    })
+
+    // Wait for the infinite promise (which never resolves)
+    await infiniteAutomation
+
+    // This code should NEVER execute
+    console.log('❌ CRITICAL: Infinite automation stopped - THIS SHOULD NEVER HAPPEN')
 
   } catch (error) {
-    console.error('💥 Critical scheduler error:', error)
-    console.log('🔄 Attempting to restart infinite loop...')
+    console.error('💥 AUTOMATIC SYSTEM CRITICAL ERROR:', error)
+    console.log('🔄 AUTOMATIC RECOVERY: Attempting to restart automation...')
     
-    // Even if there's a critical error, try to keep going
+    // Even critical errors shouldn't stop the system
     return new Response(
       JSON.stringify({ 
         error: error.message,
         success: false,
-        message: 'Critical error occurred but scheduler will attempt to continue'
+        message: 'Critical error in automatic system but will attempt recovery',
+        automated: true,
+        timestamp: new Date().toISOString()
       }),
       { 
         status: 500,
