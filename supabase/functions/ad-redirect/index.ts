@@ -60,17 +60,13 @@ serve(async (req) => {
       })
     }
 
-    // Return redirect response with tracking info
-    return new Response(JSON.stringify({
-      success: true,
-      redirect_url: result.redirect_url,
-      first_click: result.first_click,
-      earning: result.earning,
-      message: result.first_click ? 
-        `Great! You earned $${result.earning} for this click!` : 
-        'Thanks for clicking! (No earning for repeat clicks)'
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    // Redirect the user to the actual ad URL
+    return new Response(null, {
+      status: 302,
+      headers: {
+        ...corsHeaders,
+        'Location': result.redirect_url
+      }
     })
 
   } catch (error) {

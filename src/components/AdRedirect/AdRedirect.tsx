@@ -1,7 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, ExternalLink, DollarSign } from 'lucide-react';
@@ -26,13 +25,42 @@ const AdRedirect = () => {
       try {
         console.log('Processing ad click:', { adId, webhookId });
 
-        const { data, error } = await supabase.functions.invoke('ad-redirect', {
-          body: { ad_id: adId, webhook_id: webhookId }
-        });
+        // Call the edge function directly via fetch to handle redirects properly
+        const response = await fetch(
+          `https://azuwehjpqqmhfzfluiui.supabase.co/functions/v1/ad-redirect?ad_id=${adId}&webhook_id=${webhookId}`,
+          {
+            method: 'GET',
+            redirect: 'manual' // Don't follow redirects automatically
+          }
+        );
 
-        if (error) {
-          console.error('Edge function error:', error);
-          setError('Failed to process click');
+        if (response.status === 302) {
+          // This is a redirect response, get the location
+          const redirectUrl = response.headers.get('Location');
+          if (redirectUrl) {
+            console.log('Successful click processing, redirecting to:', redirectUrl);
+            setResult({
+              success: true,
+              redirect_url: redirectUrl,
+              first_click: true,
+              earning: 0.01,
+              message: 'Great! You earned $0.01 for this click!'
+            });
+            setLoading(false);
+
+            // Auto-redirect after 3 seconds
+            setTimeout(() => {
+              window.open(redirectUrl, '_blank');
+            }, 3000);
+            return;
+          }
+        }
+
+        // Handle other response types
+        const data = await response.json();
+        
+        if (!response.ok) {
+          setError(data.message || 'Failed to process click');
           setLoading(false);
           return;
         }
@@ -40,13 +68,6 @@ const AdRedirect = () => {
         console.log('Click processed successfully:', data);
         setResult(data);
         setLoading(false);
-
-        // Auto-redirect after 3 seconds
-        if (data.success && data.redirect_url) {
-          setTimeout(() => {
-            window.open(data.redirect_url, '_blank');
-          }, 3000);
-        }
 
       } catch (err) {
         console.error('Click processing error:', err);
