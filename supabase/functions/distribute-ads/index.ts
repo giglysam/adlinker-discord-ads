@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -137,6 +136,9 @@ serve(async (req) => {
     // Distribute the LLM-approved ad to all webhooks
     for (const webhook of webhooks) {
       try {
+        // Generate redirect URL for tracking
+        const redirectUrl = `https://azuwehjpqqmhfzfluiui.supabase.co/functions/v1/ad-redirect?ad_id=${currentAd.id}&webhook_id=${webhook.id}`
+        
         // Create enhanced Discord message for LLM-approved content
         const discordMessage = {
           content: "🤖 **AI-Approved Sponsored Content** - Quality guaranteed by AI!",
@@ -144,7 +146,7 @@ serve(async (req) => {
             {
               title: currentAd.title || "AI-Approved Sponsored Content",
               description: currentAd.text || "Check out this AI-verified offer!",
-              url: currentAd.url || "https://discord.com",
+              url: redirectUrl,
               color: 5865242,
               fields: [
                 {
@@ -175,7 +177,7 @@ serve(async (req) => {
           discordMessage.embeds[0].image = { url: currentAd.image_url }
         }
 
-        console.log(`📤 LLM: Sending AI-approved "${currentAd.title}" to ${webhook.server_name}`)
+        console.log(`📤 LLM: Sending AI-approved "${currentAd.title}" to ${webhook.server_name} with tracking URL`)
 
         // Send to Discord webhook
         const response = await fetch(webhook.webhook_url, {
