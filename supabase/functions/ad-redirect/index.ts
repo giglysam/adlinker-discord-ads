@@ -7,6 +7,24 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Helper function to extract the first valid IP address from a comma-separated string
+function extractFirstValidIP(ipString: string): string {
+  if (!ipString) return '127.0.0.1';
+  
+  // Split by comma and take the first IP, trim whitespace
+  const firstIP = ipString.split(',')[0].trim();
+  
+  // Basic validation - check if it looks like an IP address
+  const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+  
+  if (ipRegex.test(firstIP)) {
+    return firstIP;
+  }
+  
+  // If not a valid IPv4, return localhost as fallback
+  return '127.0.0.1';
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -29,12 +47,14 @@ serve(async (req) => {
       })
     }
 
-    // Get the user's IP address
-    const userIP = req.headers.get('x-forwarded-for') || 
-                   req.headers.get('x-real-ip') || 
-                   '127.0.0.1'
+    // Get the user's IP address and handle multiple IPs correctly
+    const rawIP = req.headers.get('x-forwarded-for') || 
+                  req.headers.get('x-real-ip') || 
+                  '127.0.0.1'
+    
+    const userIP = extractFirstValidIP(rawIP);
 
-    console.log(`Processing click: ad_id=${adId}, webhook_id=${webhookId}, ip=${userIP}`)
+    console.log(`Processing click: ad_id=${adId}, webhook_id=${webhookId}, raw_ip=${rawIP}, processed_ip=${userIP}`)
 
     // Call the database function to handle click tracking
     const { data: result, error } = await supabase.rpc('handle_ad_click', {
