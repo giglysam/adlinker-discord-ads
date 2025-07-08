@@ -14,6 +14,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
+  signInWithGoogle: () => Promise<boolean>;
   signup: (username: string, email: string, password: string, role: 'advertiser' | 'shower') => Promise<boolean>;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
@@ -133,17 +134,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const refreshUser = async () => {
-    try {
-      const { data: { user: supabaseUser } } = await supabase.auth.getUser();
-      if (supabaseUser) {
-        await loadUserProfile(supabaseUser);
-      }
-    } catch (error) {
-      console.error('Error refreshing user:', error);
-    }
-  };
-
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       console.log('Attempting login for:', email);
@@ -178,6 +168,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const signInWithGoogle = async (): Promise<boolean> => {
+    try {
+      setLoading(true);
+      console.log('Attempting Google sign in...');
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/`,
+        }
+      });
+
+      if (error) {
+        console.error('Google sign in error:', error.message);
+        setLoading(false);
+        return false;
+      }
+
+      // OAuth flow will handle the redirect
+      return true;
+    } catch (error) {
+      console.error('Google sign in error:', error);
+      setLoading(false);
+      return false;
+    }
+  };
+
   const signup = async (username: string, email: string, password: string, role: 'advertiser' | 'shower'): Promise<boolean> => {
     try {
       setLoading(true);
@@ -189,6 +206,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/`,
+          data: {
+            username,
+            role,
+          }
         }
       });
 
@@ -275,8 +296,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const refreshUser = async () => {
+    if (!user) return;
+  
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+  
+      if (error) {
+        console.error('Error refreshing user:', error.message);
+        return;
+      }
+  
+      if (data) {
+        setUser({
+          ...user,
+          username: data.username || user.username,
+          email: data.email || user.email,
+          role: (data.role as 'advertiser' | 'shower' | 'admin') || user.role,
+          balance: data.balance || user.balance,
+          webhookNotice: data.webhook_notice || user.webhookNotice,
+        });
+      }
+    } catch (error) {
+      console.error('Error refreshing user:', error);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, signup, logout, updateUser, refreshUser, loading }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      login, 
+      signInWithGoogle,
+      signup, 
+      logout, 
+      updateUser, 
+      refreshUser, 
+      loading 
+    }}>
       {children}
     </AuthContext.Provider>
   );

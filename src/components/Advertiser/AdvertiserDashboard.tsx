@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Eye, ExternalLink, Phone, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Eye, ExternalLink, Phone, Clock, CheckCircle, XCircle, MousePointer } from 'lucide-react';
 import CreateAdModal from './CreateAdModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,7 +17,7 @@ interface Ad {
   text: string;
   status: 'pending' | 'public' | 'stopped';
   created_at: string;
-  impressions: number;
+  clicks: number;
 }
 
 const AdvertiserDashboard = () => {
@@ -34,24 +35,49 @@ const AdvertiserDashboard = () => {
   const fetchAds = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // Fetch ads with click counts
+      const { data: adsData, error: adsError } = await supabase
         .from('ads')
-        .select('*')
+        .select(`
+          id,
+          title,
+          url,
+          image_url,
+          text,
+          status,
+          created_at
+        `)
         .eq('user_id', user?.id)
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching ads:', error);
+      if (adsError) {
+        console.error('Error fetching ads:', adsError);
         toast.error('Failed to load ads');
         return;
       }
 
-      const typedAds = (data || []).map(ad => ({
-        ...ad,
-        status: ad.status as 'pending' | 'public' | 'stopped'
-      }));
+      // Fetch click counts for each ad
+      const adsWithClicks = await Promise.all(
+        (adsData || []).map(async (ad) => {
+          const { data: clickData, error: clickError } = await supabase
+            .from('ad_clicks')
+            .select('id')
+            .eq('ad_id', ad.id);
 
-      setAds(typedAds);
+          if (clickError) {
+            console.error('Error fetching clicks for ad:', ad.id, clickError);
+          }
+
+          return {
+            ...ad,
+            status: ad.status as 'pending' | 'public' | 'stopped',
+            clicks: clickData?.length || 0
+          };
+        })
+      );
+
+      setAds(adsWithClicks);
     } catch (error) {
       console.error('Error fetching ads:', error);
       toast.error('Failed to load ads');
@@ -93,7 +119,6 @@ const AdvertiserDashboard = () => {
           text: adData.text,
           user_id: user?.id,
           status: 'pending',
-          impressions: 0,
         })
         .select()
         .single();
@@ -104,12 +129,13 @@ const AdvertiserDashboard = () => {
         return;
       }
 
-      const typedAd = {
+      const newAd = {
         ...data,
-        status: data.status as 'pending' | 'public' | 'stopped'
+        status: data.status as 'pending' | 'public' | 'stopped',
+        clicks: 0
       };
 
-      setAds([typedAd, ...ads]);
+      setAds([newAd, ...ads]);
       setShowCreateModal(false);
       toast.success('Ad created successfully! Awaiting admin approval.');
     } catch (error) {
@@ -120,7 +146,7 @@ const AdvertiserDashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 p-6">
+      <div className="min-h-screen bg-gray-900 p-4 sm:p-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-white text-xl">Loading ads...</div>
         </div>
@@ -130,76 +156,76 @@ const AdvertiserDashboard = () => {
 
   const pendingAds = ads.filter(ad => ad.status === 'pending');
   const publicAds = ads.filter(ad => ad.status === 'public');
-  const totalImpressions = ads.reduce((sum, ad) => sum + (ad.impressions || 0), 0);
+  const totalClicks = ads.reduce((sum, ad) => sum + (ad.clicks || 0), 0);
 
   return (
-    <div className="min-h-screen bg-gray-900 p-6">
+    <div className="min-h-screen bg-gray-900 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white">Advertiser Dashboard</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">Advertiser Dashboard</h1>
             <p className="text-gray-400 mt-1">Manage your Discord advertisements</p>
           </div>
-          <Button onClick={() => setShowCreateModal(true)} className="bg-blue-600 hover:bg-blue-700">
+          <Button onClick={() => setShowCreateModal(true)} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
             <Plus className="w-4 h-4 mr-2" />
             Create Ad
           </Button>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-gray-400 text-sm">Total Ads</p>
-                  <p className="text-2xl font-bold text-white">{ads.length}</p>
+                  <p className="text-gray-400 text-xs sm:text-sm">Total Ads</p>
+                  <p className="text-xl sm:text-2xl font-bold text-white">{ads.length}</p>
                 </div>
-                <div className="w-12 h-12 bg-blue-600/20 rounded-lg flex items-center justify-center">
-                  <Eye className="w-6 h-6 text-blue-400" />
+                <div className="w-8 h-8 sm:w-12 sm:h-12 bg-blue-600/20 rounded-lg flex items-center justify-center">
+                  <Eye className="w-4 h-4 sm:w-6 sm:h-6 text-blue-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-gray-400 text-sm">Active Ads</p>
-                  <p className="text-2xl font-bold text-green-400">{publicAds.length}</p>
+                  <p className="text-gray-400 text-xs sm:text-sm">Active Ads</p>
+                  <p className="text-xl sm:text-2xl font-bold text-green-400">{publicAds.length}</p>
                 </div>
-                <div className="w-12 h-12 bg-green-600/20 rounded-lg flex items-center justify-center">
-                  <CheckCircle className="w-6 h-6 text-green-400" />
+                <div className="w-8 h-8 sm:w-12 sm:h-12 bg-green-600/20 rounded-lg flex items-center justify-center">
+                  <CheckCircle className="w-4 h-4 sm:w-6 sm:h-6 text-green-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-gray-400 text-sm">Pending Ads</p>
-                  <p className="text-2xl font-bold text-yellow-400">{pendingAds.length}</p>
+                  <p className="text-gray-400 text-xs sm:text-sm">Pending Ads</p>
+                  <p className="text-xl sm:text-2xl font-bold text-yellow-400">{pendingAds.length}</p>
                 </div>
-                <div className="w-12 h-12 bg-yellow-600/20 rounded-lg flex items-center justify-center">
-                  <Clock className="w-6 h-6 text-yellow-400" />
+                <div className="w-8 h-8 sm:w-12 sm:h-12 bg-yellow-600/20 rounded-lg flex items-center justify-center">
+                  <Clock className="w-4 h-4 sm:w-6 sm:h-6 text-yellow-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-gray-400 text-sm">Total Impressions</p>
-                  <p className="text-2xl font-bold text-white">{totalImpressions.toLocaleString()}</p>
+                  <p className="text-gray-400 text-xs sm:text-sm">Total Clicks</p>
+                  <p className="text-xl sm:text-2xl font-bold text-white">{totalClicks.toLocaleString()}</p>
                 </div>
-                <div className="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center">
-                  <ExternalLink className="w-6 h-6 text-purple-400" />
+                <div className="w-8 h-8 sm:w-12 sm:h-12 bg-purple-600/20 rounded-lg flex items-center justify-center">
+                  <MousePointer className="w-4 h-4 sm:w-6 sm:h-6 text-purple-400" />
                 </div>
               </div>
             </CardContent>
@@ -209,18 +235,18 @@ const AdvertiserDashboard = () => {
         {/* Pending Ads Notice */}
         {pendingAds.length > 0 && (
           <Card className="bg-yellow-900/20 border-yellow-500/50">
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
               <div className="flex items-start space-x-4">
                 <Phone className="w-6 h-6 text-yellow-400 mt-1 flex-shrink-0" />
-                <div>
+                <div className="flex-1">
                   <h3 className="text-yellow-400 font-semibold mb-2">Pending Ads Need Approval</h3>
-                  <p className="text-gray-300 mb-3">
+                  <p className="text-gray-300 mb-3 text-sm sm:text-base">
                     You have {pendingAds.length} pending ad{pendingAds.length > 1 ? 's' : ''} waiting for approval.
                     Contact the admin to publish your ads and start reaching Discord communities.
                   </p>
                   <div className="bg-gray-800 p-3 rounded-lg">
                     <p className="text-gray-400 text-sm mb-1">Contact Admin:</p>
-                    <p className="text-white font-mono">+961 71831770</p>
+                    <p className="text-white font-mono text-sm sm:text-base">+961 71831770</p>
                     <p className="text-gray-400 text-xs mt-1">WhatsApp available</p>
                   </div>
                 </div>
@@ -242,22 +268,22 @@ const AdvertiserDashboard = () => {
                 </div>
               ) : (
                 ads.map((ad) => (
-                  <div key={ad.id} className="flex items-start space-x-4 p-4 bg-gray-700/50 rounded-lg">
+                  <div key={ad.id} className="flex flex-col sm:flex-row items-start space-y-4 sm:space-y-0 sm:space-x-4 p-4 bg-gray-700/50 rounded-lg">
                     <img
                       src={ad.image_url || 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400'}
                       alt={ad.title}
-                      className="w-20 h-20 rounded-lg object-cover"
+                      className="w-full sm:w-20 h-32 sm:h-20 rounded-lg object-cover"
                     />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between">
-                        <div>
+                    <div className="flex-1 min-w-0 w-full">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                        <div className="flex-1">
                           <h3 className="text-white font-semibold">{ad.title}</h3>
                           <p className="text-gray-400 text-sm mt-1">{ad.text}</p>
                           <a
                             href={ad.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-blue-400 text-sm hover:underline mt-1 inline-block"
+                            className="text-blue-400 text-sm hover:underline mt-1 inline-block break-all"
                           >
                             {ad.url}
                           </a>
@@ -267,10 +293,13 @@ const AdvertiserDashboard = () => {
                           <span className="ml-1 capitalize">{ad.status}</span>
                         </Badge>
                       </div>
-                      <div className="flex items-center justify-between mt-3">
-                        <div className="flex items-center space-x-4 text-sm text-gray-400">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-3 gap-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-4 text-sm text-gray-400">
                           <span>Created: {new Date(ad.created_at).toLocaleDateString()}</span>
-                          <span>Impressions: {(ad.impressions || 0).toLocaleString()}</span>
+                          <span className="flex items-center">
+                            <MousePointer className="w-3 h-3 mr-1" />
+                            Clicks: {(ad.clicks || 0).toLocaleString()}
+                          </span>
                         </div>
                       </div>
                     </div>
