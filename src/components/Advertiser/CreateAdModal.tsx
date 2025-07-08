@@ -37,9 +37,6 @@ const CreateAdModal: React.FC<CreateAdModalProps> = ({ isOpen, onClose, onSubmit
     setFormData({ title: '', url: '', text: '', imageUrl: '' });
   };
 
-  const isImage = (url: string) => /\.(jpeg|jpg|gif|png|webp)$/i.test(url);
-  const isVideo = (url: string) => /\.(mp4|webm|ogg)$/i.test(url);
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-2xl h-[95vh] max-h-[800px] flex flex-col p-0 overflow-hidden">
@@ -111,51 +108,6 @@ const CreateAdModal: React.FC<CreateAdModalProps> = ({ isOpen, onClose, onSubmit
                   required
                 />
               </div>
-
-              {/* Preview */}
-              {(formData.imageUrl || formData.title || formData.text) && (
-                <div className="space-y-2">
-                  <Label className="text-gray-300">Ad Preview</Label>
-                  <div className="bg-gray-700 p-4 rounded-lg border border-gray-600 space-y-2">
-                    {isImage(formData.imageUrl) && (
-                      <img
-                        src={formData.imageUrl}
-                        alt="Ad preview"
-                        className="w-full h-32 object-cover rounded"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                        }}
-                      />
-                    )}
-                    {isVideo(formData.imageUrl) && (
-                      <video
-                        src={formData.imageUrl}
-                        controls
-                        className="w-full h-32 object-cover rounded"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                        }}
-                      />
-                    )}
-                    {formData.title && (
-                      <h3 className="text-white font-semibold">{formData.title}</h3>
-                    )}
-                    {formData.text && (
-                      <p className="text-gray-300 text-sm">{formData.text}</p>
-                    )}
-                    {formData.url && (
-                      <a
-                        href={formData.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-400 text-sm hover:underline inline-block break-all"
-                      >
-                        {formData.url}
-                      </a>
-                    )}
-                  </div>
-                </div>
-              )}
 
               {/* Buttons - Always visible at bottom */}
               <div className="flex justify-end space-x-3 pt-6 pb-2 border-t border-gray-600 bg-gray-800 sticky bottom-0">
