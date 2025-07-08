@@ -1,1 +1,5 @@
+
 project_id = "azuwehjpqqmhfzfluiui"
+
+[functions.ad-redirect]
+verify_jwt = false
