@@ -16,10 +16,13 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>;
   signInWithGoogle: () => Promise<boolean>;
   signup: (username: string, email: string, password: string, role: 'advertiser' | 'shower') => Promise<boolean>;
+  completeGoogleSignup: (role: 'advertiser' | 'shower', username: string) => Promise<boolean>;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
   refreshUser: () => Promise<void>;
   loading: boolean;
+  needsRoleSelection: boolean;
+  googleUser: SupabaseUser | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,6 +39,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
+  const [needsRoleSelection, setNeedsRoleSelection] = useState(false);
+  const [googleUser, setGoogleUser] = useState<SupabaseUser | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -89,6 +94,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await loadUserProfile(session.user);
       } else {
         setUser(null);
+        setNeedsRoleSelection(false);
+        setGoogleUser(null);
         setLoading(false);
       }
     });
@@ -109,7 +116,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('id', supabaseUser.id)
         .single();
 
-      if (error) {
+      if (error && error.code !== 'PGRST116') {
         console.error('Error loading user profile:', error);
         setLoading(false);
         return;
@@ -125,6 +132,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           balance: data.balance || 0,
           webhookNotice: data.webhook_notice,
         });
+        setNeedsRoleSelection(false);
+        setGoogleUser(null);
+      } else {
+        // User exists in auth but not in our users table (Google OAuth case)
+        console.log('User needs profile setup:', supabaseUser.email);
+        setNeedsRoleSelection(true);
+        setGoogleUser(supabaseUser);
+        setUser(null);
       }
       
       setLoading(false);
@@ -152,10 +167,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (data.user) {
         console.log('Login successful for:', email);
-        // Force a page reload to reset the application state
-        setTimeout(() => {
-          window.location.href = '/';
-        }, 100);
         return true;
       }
       
@@ -190,6 +201,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
     } catch (error) {
       console.error('Google sign in error:', error);
+      setLoading(false);
+      return false;
+    }
+  };
+
+  const completeGoogleSignup = async (role: 'advertiser' | 'shower', username: string): Promise<boolean> => {
+    if (!googleUser) {
+      console.error('No Google user to complete signup for');
+      return false;
+    }
+
+    try {
+      setLoading(true);
+      console.log('Completing Google signup for:', googleUser.email);
+
+      // Create the user profile
+      const { error: profileError } = await supabase
+        .from('users')
+        .insert({
+          id: googleUser.id,
+          username,
+          email: googleUser.email || '',
+          role,
+          balance: role === 'shower' ? 0 : null,
+          password_hash: '',
+        });
+
+      if (profileError) {
+        console.error('Profile creation error:', profileError.message);
+        setLoading(false);
+        return false;
+      }
+
+      console.log('Google signup completed for:', googleUser.email);
+      
+      // Reload the user profile
+      await loadUserProfile(googleUser);
+      
+      return true;
+    } catch (error) {
+      console.error('Complete Google signup error:', error);
       setLoading(false);
       return false;
     }
@@ -263,6 +315,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Logout error:', error.message);
       }
       setUser(null);
+      setNeedsRoleSelection(false);
+      setGoogleUser(null);
       setLoading(false);
       // Force a page reload to reset the application state
       window.location.href = '/';
@@ -332,10 +386,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       login, 
       signInWithGoogle,
       signup, 
+      completeGoogleSignup,
       logout, 
       updateUser, 
       refreshUser, 
-      loading 
+      loading,
+      needsRoleSelection,
+      googleUser
     }}>
       {children}
     </AuthContext.Provider>

@@ -2,6 +2,7 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import AuthPage from '../components/Auth/AuthPage';
+import GoogleRoleSelection from '../components/Auth/GoogleRoleSelection';
 import AdvertiserDashboard from '../components/Advertiser/AdvertiserDashboard';
 import AdShowerDashboard from '../components/AdShower/AdShowerDashboard';
 import AdminDashboard from '../components/Admin/AdminDashboard';
@@ -9,15 +10,24 @@ import Navbar from '../components/Layout/Navbar';
 import HomePage from '../components/Home/HomePage';
 
 const Index = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, needsRoleSelection } = useAuth();
 
-  console.log('Index render - user:', user, 'loading:', loading);
+  console.log('Index render - user:', user, 'loading:', loading, 'needsRoleSelection:', needsRoleSelection);
 
   // Show loading only during initial auth check
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-white text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  // Show role selection if user needs to complete Google signup
+  if (needsRoleSelection) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+        <GoogleRoleSelection />
       </div>
     );
   }
