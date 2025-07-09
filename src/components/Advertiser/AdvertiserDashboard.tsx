@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,7 +35,9 @@ const AdvertiserDashboard = () => {
     try {
       setLoading(true);
       
-      // Fetch ads with click counts
+      console.log('Fetching ads for user:', user?.id);
+      
+      // Fetch ads with click counts - using a more direct approach
       const { data: adsData, error: adsError } = await supabase
         .from('ads')
         .select(`
@@ -57,27 +58,43 @@ const AdvertiserDashboard = () => {
         return;
       }
 
-      // Fetch click counts for each ad
-      const adsWithClicks = await Promise.all(
-        (adsData || []).map(async (ad) => {
-          const { data: clickData, error: clickError } = await supabase
-            .from('ad_clicks')
-            .select('id')
-            .eq('ad_id', ad.id);
+      console.log('Ads fetched:', adsData);
 
-          if (clickError) {
-            console.error('Error fetching clicks for ad:', ad.id, clickError);
-          }
+      // Fetch click counts for each ad using a single query
+      const adIds = (adsData || []).map(ad => ad.id);
+      
+      if (adIds.length > 0) {
+        const { data: clickData, error: clickError } = await supabase
+          .from('ad_clicks')
+          .select('ad_id, id')
+          .in('ad_id', adIds);
 
-          return {
-            ...ad,
-            status: ad.status as 'pending' | 'public' | 'stopped',
-            clicks: clickData?.length || 0
-          };
-        })
-      );
+        if (clickError) {
+          console.error('Error fetching clicks:', clickError);
+        }
 
-      setAds(adsWithClicks);
+        console.log('Click data fetched:', clickData);
+
+        // Count clicks per ad
+        const clickCounts = (clickData || []).reduce((acc, click) => {
+          acc[click.ad_id] = (acc[click.ad_id] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+
+        console.log('Click counts calculated:', clickCounts);
+
+        // Combine ads with their click counts
+        const adsWithClicks = (adsData || []).map(ad => ({
+          ...ad,
+          status: ad.status as 'pending' | 'public' | 'stopped',
+          clicks: clickCounts[ad.id] || 0
+        }));
+
+        console.log('Final ads with clicks:', adsWithClicks);
+        setAds(adsWithClicks);
+      } else {
+        setAds([]);
+      }
     } catch (error) {
       console.error('Error fetching ads:', error);
       toast.error('Failed to load ads');
@@ -157,6 +174,8 @@ const AdvertiserDashboard = () => {
   const pendingAds = ads.filter(ad => ad.status === 'pending');
   const publicAds = ads.filter(ad => ad.status === 'public');
   const totalClicks = ads.reduce((sum, ad) => sum + (ad.clicks || 0), 0);
+
+  console.log('Rendering dashboard with:', { totalAds: ads.length, totalClicks, pendingAds: pendingAds.length, publicAds: publicAds.length });
 
   return (
     <div className="min-h-screen bg-gray-900 p-4 sm:p-6">
@@ -296,7 +315,7 @@ const AdvertiserDashboard = () => {
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-3 gap-2">
                         <div className="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-4 text-sm text-gray-400">
                           <span>Created: {new Date(ad.created_at).toLocaleDateString()}</span>
-                          <span className="flex items-center">
+                          <span className="flex items-center font-semibold text-purple-400">
                             <MousePointer className="w-3 h-3 mr-1" />
                             Clicks: {(ad.clicks || 0).toLocaleString()}
                           </span>
